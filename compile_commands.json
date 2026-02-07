@@ -1,0 +1,21 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-O2",
+      "-I/usr/include/SDL2",
+      "-D_GNU_SOURCE=1",
+      "-D_REENTRANT",
+      "-I/usr/include/ffmpeg",
+      "-c",
+      "-o",
+      "build/release/main.o",
+      "src/main.c"
+    ],
+    "directory": "/home/pedro/projects/dvr-viewer",
+    "file": "/home/pedro/projects/dvr-viewer/src/main.c",
+    "output": "/home/pedro/projects/dvr-viewer/build/release/main.o"
+  }
+]
