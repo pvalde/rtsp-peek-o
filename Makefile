@@ -12,6 +12,12 @@ PKG_PKGS 		= sdl2 libavformat libavcodec libavutil libswscale
 # ----------------------------------------
 INCS 			= $(shell $(PKG) --cflags $(PKG_PKGS))
 LIBS			= $(shell $(PKG) --libs $(PKG_PKGS))
+LIBS            += -lm
+
+# ----------------------------------------
+# SAN flags
+# ----------------------------------------
+SAN_FLAGS = -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer
 
 # ----------------------------------------
 # PATHS
@@ -22,7 +28,7 @@ BIN_DIR			= bin
 
 SRCS			= $(wildcard $(SRC_DIR)/*.c)
 
-TARGET_NAME 	= dvr-viewer
+TARGET_NAME 	= rtsp-peek
 
 BUILD_TYPE 		?= release
 # override BUILD_TYPE = $(BUILD_TYPE)
@@ -31,10 +37,12 @@ BUILD_TYPE 		?= release
 # adjust flags and dirs per build type
 # ----------------------------------------
 ifeq ($(BUILD_TYPE),debug)
-	CFLAGS 			= $(CFLAGS_DEBUG)
+	CFLAGS 			= $(CFLAGS_DEBUG) $(SAN_FLAGS)
+	LDFLAGS         = $(SAN_FLAGS)
 	BUILD_SUBDIR 	= debug
 else
 	CFLAGS 			= $(CFLAGS_RELEASE)
+	LDFLAGS         =
 	BUILD_SUBDIR 	= release
 endif
 
@@ -62,22 +70,22 @@ all: $(TARGET)
 # link
 $(TARGET): $(OBJS)
 	@mkdir -p $(BIN_DIR_FULL)
-	$(CC) $(CFLAGS) $(INCS) $^ -o $@ $(LIBS)
+	$(CC) $(CFLAGS) $(INCS) $^ -o $@ $(LDFLAGS) $(LIBS)
 
 # compile
 $(BUILD_DIR_FULL)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(BUILD_DIR_FULL)
-	@echo "Compiling $< with CFLAGS=$(CFLAGS)"
+	@echo "Compiling $< [$(BUILD_TYPE)]"
 	$(CC) $(CFLAGS) $(INCS) -c $< -o $@
 
 # ----------------------------------------
 # Convenience build targets
 # ----------------------------------------
 debug:
-	$(MAKE) BUILD_TYPE=debug all
+	@$(MAKE) BUILD_TYPE=debug all
 
 release:
-	$(MAKE) BUILD_TYPE=release all
+	@$(MAKE) BUILD_TYPE=release all
 
 # ----------------------------------------
 # Run
@@ -89,13 +97,16 @@ run: release
 run-debug:
 	@$(MAKE) BUILD_TYPE=debug run-debug-internal
 
-run-debug-internal: debug
+run-debug-internal: $(TARGET)
 	@echo "Launching $(TARGET) in gdb..."
 	gdb --tui --args ./$(TARGET) $(ARGS)
 
-run-release: release
+run-release:
+	@$(MAKE) BUILD_TYPE=release run-release-internal
+
+run-release-internal: $(TARGET)
 	@echo "Running release binary..."
-	./$(TARGET)
+	./$(TARGET) $(ARGS)
 
 # ----------------------------------------
 clean:

@@ -5,7 +5,7 @@ void log_ffmpeg_error(const char *err_msg, char *stream_name, int err);
 static int Stream_init(Stream *pStream, const char *url);
 static void Stream_clean_up(Stream *pStream);
 
-static int Renderer_init(VideoPlayer *pPlayer, SDL_Window **screen);
+static int Renderer_init(VideoPlayer *pPlayer, SDL_Renderer **renderer);
 
 static void Renderer_clean_up(VideoPlayer *pPlayer);
 static int load_avformat_ctx(AVFormatContext **pFormatCtx, char *url);
@@ -33,7 +33,7 @@ static void set_avframe_for_encoding_decoding(AVFrame **pFrame,
                                               uint8_t **raw_buffer,
                                               AVCodecContext **pCodecCtx);
 
-int VideoPlayer_init(VideoPlayer *pPlayer, SDL_Window **screen,
+int VideoPlayer_init(VideoPlayer *pPlayer, SDL_Renderer **renderer,
                      const char *url) {
   int ret;
   ret = Stream_init(&(pPlayer->stream), url);
@@ -41,7 +41,7 @@ int VideoPlayer_init(VideoPlayer *pPlayer, SDL_Window **screen,
     return -1;
   }
 
-  ret = Renderer_init(pPlayer, screen);
+  ret = Renderer_init(pPlayer, renderer);
   if (ret < 0) {
     return -1;
   }
@@ -133,21 +133,9 @@ static void Stream_clean_up(Stream *pStream) {
   avformat_close_input(&(pStream->pFormatCtx));
 }
 
-static int Renderer_init(VideoPlayer *pPlayer, SDL_Window **screen) {
-  // SDL
-  /* pPlayer->renderer.sdl_renderer = */
-  /*     SDL_CreateRenderer(*screen, -1, */
-  /*                        SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC
-   * | */
-  /*                        SDL_RENDERER_TARGETTEXTURE); */
+static int Renderer_init(VideoPlayer *pPlayer, SDL_Renderer **renderer) {
+  pPlayer->renderer.sdl_renderer = *renderer;
 
-  pPlayer->renderer.sdl_renderer =
-      SDL_CreateRenderer(*screen, -1, SDL_RENDERER_ACCELERATED);
-
-  /* pPlayer->renderer.sdl_texture = SDL_CreateTexture( */
-  /*     pPlayer->renderer.sdl_renderer, SDL_PIXELFORMAT_YV12, */
-  /*     SDL_TEXTUREACCESS_STREAMING, pPlayer->stream.pCodecCtx->width, */
-  /*     pPlayer->stream.pCodecCtx->height); */
   pPlayer->renderer.sdl_texture = SDL_CreateTexture(
       pPlayer->renderer.sdl_renderer, SDL_PIXELFORMAT_IYUV,
       SDL_TEXTUREACCESS_STREAMING, pPlayer->stream.pCodecCtx->width,

@@ -32,7 +32,7 @@ typedef struct {
   Renderer renderer;
 } VideoPlayer;
 
-int VideoPlayer_init(VideoPlayer *pPlayer, SDL_Window **screen,
+int VideoPlayer_init(VideoPlayer *pPlayer, SDL_Renderer **renderer,
                      const char *url);
 void VideoPlayer_clean_up(VideoPlayer *pPlayer);
 
