@@ -1,3 +1,4 @@
+#include "cli_args.h"
 #include "rtsp_playback.h"
 #include "video_player.h"
 #include <SDL2/SDL.h>
@@ -11,6 +12,7 @@
 #define PROG_NAME "rtsp-peek"
 
 void printHelpMenu();
+void clean_SDL(SDL_Renderer **renderer, SDL_Window **window);
 
 int main(int argc, char *argv[]) {
   int n_of_streams = argc - 1;
@@ -25,6 +27,11 @@ int main(int argc, char *argv[]) {
   if (!(argc >= 2)) {
     printHelpMenu();
 
+    return -1;
+  }
+
+  if (!verify_cli_args(argc, argv)) {
+    printHelpMenu();
     return -1;
   }
 
@@ -66,9 +73,7 @@ int main(int argc, char *argv[]) {
     VideoPlayer_clean_up(&players[i]);
   }
 
-  SDL_DestroyRenderer(renderer);
-  SDL_DestroyWindow(window);
-  SDL_Quit();
+  clean_SDL(&renderer, &window);
 
   printf("=============" PROG_NAME " CLOSED NORMALLY============\n");
   return 0;
@@ -76,4 +81,10 @@ int main(int argc, char *argv[]) {
 
 void printHelpMenu() {
   printf("Usage: " PROG_NAME " <rtsp_url> [<rtsp_url> ...]\n\n");
+}
+
+void clean_SDL(SDL_Renderer **renderer, SDL_Window **window) {
+  SDL_DestroyRenderer(*renderer);
+  SDL_DestroyWindow(*window);
+  SDL_Quit();
 }
