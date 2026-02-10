@@ -11,29 +11,37 @@
 
 #define PROG_NAME "rtsp-peek"
 
-void printHelpMenu();
 void clean_SDL(SDL_Renderer **renderer, SDL_Window **window);
 
 int main(int argc, char *argv[]) {
-  int n_of_streams = argc - 1;
+  Cli_args args = {0};
   int ret;
-  VideoPlayer players[n_of_streams];
 
-  for (int i = 0; i < n_of_streams; i++) {
+  ret = parse_args(argc, argv, &args);
+
+  if (ret == PARSE_ERROR) {
+    return -1;
+  } else if (ret == PARSE_HELP) {
+    return 0;
+  }
+
+  VideoPlayer players[args.n_of_rtsp_urls];
+
+  for (int i = 0; i < args.n_of_rtsp_urls; i++) {
     VideoPlayer player = {0};
     players[i] = player;
   }
 
-  if (!(argc >= 2)) {
-    printHelpMenu();
+  /* if (!(argc >= 2)) { */
+  /*   printHelpMenu(); */
 
-    return -1;
-  }
+  /*   return -1; */
+  /* } */
 
-  if (!verify_cli_args(argc, argv)) {
-    printHelpMenu();
-    return -1;
-  }
+  /* if (!verify_cli_args(argc, argv)) { */
+  /*   printHelpMenu(); */
+  /*   return -1; */
+  /* } */
 
   ret = SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER);
   if (ret != 0) {
@@ -57,7 +65,7 @@ int main(int argc, char *argv[]) {
 
   SDL_GL_SetSwapInterval(1);
 
-  for (int i = 0; i < n_of_streams; i++) {
+  for (int i = 0; i < args.n_of_rtsp_urls; i++) {
     ret = VideoPlayer_init(&players[i], &renderer, argv[i + 1]);
     if (ret < 0) {
       return -1;
@@ -69,18 +77,15 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  for (int i = 0; i < n_of_streams; i++) {
+  for (int i = 0; i < args.n_of_rtsp_urls; i++) {
     VideoPlayer_clean_up(&players[i]);
   }
 
   clean_SDL(&renderer, &window);
+  clean_cli_args(&args);
 
   printf("=============" PROG_NAME " CLOSED NORMALLY============\n");
   return 0;
-}
-
-void printHelpMenu() {
-  printf("Usage: " PROG_NAME " <rtsp_url> [<rtsp_url> ...]\n\n");
 }
 
 void clean_SDL(SDL_Renderer **renderer, SDL_Window **window) {
