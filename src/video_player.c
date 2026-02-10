@@ -1,4 +1,10 @@
 #include "video_player.h"
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_thread.h>
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libavutil/imgutils.h>
+#include <libswscale/swscale.h>
 
 void log_ffmpeg_error(const char *err_msg, char *stream_name, int err);
 
