@@ -30,10 +30,10 @@ typedef struct {
 typedef struct {
   Stream stream;
   Renderer renderer;
-} VideoPlayer;
+} Video_Player;
 
-int VideoPlayer_init(VideoPlayer *pPlayer, SDL_Renderer **renderer,
-                     const char *url);
-void VideoPlayer_clean_up(VideoPlayer *pPlayer);
+int Video_Player_init(Video_Player *pPlayer, SDL_Renderer **renderer,
+                      const char *url);
+void Video_Player_clean_up(Video_Player *pPlayer);
 
 #endif // VIDEO_PLAYER_H

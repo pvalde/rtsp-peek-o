@@ -8,12 +8,12 @@
 #define HELP_FLAG_LONG "--help"
 #define PROG_NAME "rtsp-peek"
 
-static bool get_args(Cli_args *args, int argc, char *argv[]);
+static bool get_args(Cli_Args *args, int argc, char *argv[]);
 static bool starts_with(const char *str, const char *prefix);
 static bool check_help_flag(int argc, char *argv[]);
 void printHelpMenu();
 
-ParseStatus parse_args(int argc, char *argv[], Cli_args *args) {
+ParseStatus parse_args(int argc, char *argv[], Cli_Args *args) {
   if (!(argc >= 2)) {
     printHelpMenu();
     return PARSE_ERROR;
@@ -28,7 +28,7 @@ ParseStatus parse_args(int argc, char *argv[], Cli_args *args) {
   return PARSE_OK;
 }
 
-void clean_cli_args(Cli_args *args) {
+void Cli_args_clean_up(Cli_Args *args) {
   for (int i = 0; i < args->n_of_rtsp_urls; i++) {
     free(args->rtsp_urls[i]);
     args->rtsp_urls[i] = NULL;
@@ -38,7 +38,7 @@ void clean_cli_args(Cli_args *args) {
   args->n_of_rtsp_urls = 0;
 }
 
-static bool get_args(Cli_args *args, int argc, char *argv[]) {
+static bool get_args(Cli_Args *args, int argc, char *argv[]) {
   bool ret = true;
 
   int valid_urls_index = 0;
@@ -63,7 +63,7 @@ static bool get_args(Cli_args *args, int argc, char *argv[]) {
         fprintf(stderr, "Error: failed to allocate memory for URL '%s'\n",
                 argv[i]);
         // cleanup any previously allocated URLs
-        clean_cli_args(args);
+        Cli_args_clean_up(args);
         return false;
       }
       valid_urls_index += 1;
@@ -71,7 +71,7 @@ static bool get_args(Cli_args *args, int argc, char *argv[]) {
     }
   }
   if (!ret) {
-    clean_cli_args(args);
+    Cli_args_clean_up(args);
   }
   return ret;
 }

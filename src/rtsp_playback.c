@@ -8,11 +8,11 @@
 #include <math.h>
 #include <stdio.h>
 
-static int update_rect(VideoPlayer *pPlayer, SDL_Rect *rect);
-static void render_sdl_rect(SDL_Rect *rect, VideoPlayer *pPlayer,
+static int update_rect(Video_Player *pPlayer, SDL_Rect *rect);
+static void render_sdl_rect(SDL_Rect *rect, Video_Player *pPlayer,
                             SDL_Rect *pos_rect);
 
-int display_videos(VideoPlayer players[], int players_length,
+int display_videos(Video_Player players[], int players_length,
                    SDL_Renderer *renderer) {
   int running = 1;
   int ret;
@@ -62,7 +62,7 @@ int display_videos(VideoPlayer players[], int players_length,
   return 0;
 }
 
-static int update_rect(VideoPlayer *pPlayer, SDL_Rect *rect) {
+static int update_rect(Video_Player *pPlayer, SDL_Rect *rect) {
   int ret;
   if (av_read_frame(pPlayer->stream.pFormatCtx, pPlayer->stream.pPacket) >= 0) {
     // if the packet is from video stream
@@ -106,7 +106,7 @@ static int update_rect(VideoPlayer *pPlayer, SDL_Rect *rect) {
   return 0;
 }
 
-static void render_sdl_rect(SDL_Rect *rect, VideoPlayer *pPlayer,
+static void render_sdl_rect(SDL_Rect *rect, Video_Player *pPlayer,
                             SDL_Rect *pos_rect) {
   SDL_UpdateYUVTexture(pPlayer->renderer.sdl_texture, rect,
                        pPlayer->stream.pFrameOut->data[0],

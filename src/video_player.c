@@ -11,9 +11,9 @@ void log_ffmpeg_error(const char *err_msg, char *stream_name, int err);
 static int Stream_init(Stream *pStream, const char *url);
 static void Stream_clean_up(Stream *pStream);
 
-static int Renderer_init(VideoPlayer *pPlayer, SDL_Renderer **renderer);
+static int Renderer_init(Video_Player *pPlayer, SDL_Renderer **renderer);
 
-static void Renderer_clean_up(VideoPlayer *pPlayer);
+static void Renderer_clean_up(Video_Player *pPlayer);
 static int load_avformat_ctx(AVFormatContext **pFormatCtx, char *url);
 static int set_video_stream(AVFormatContext **pFormatCtx, int *videoStream);
 static int find_decoder(AVCodec **pCodec, int *videoStream,
@@ -39,8 +39,8 @@ static void set_avframe_for_encoding_decoding(AVFrame **pFrame,
                                               uint8_t **raw_buffer,
                                               AVCodecContext **pCodecCtx);
 
-int VideoPlayer_init(VideoPlayer *pPlayer, SDL_Renderer **renderer,
-                     const char *url) {
+int Video_Player_init(Video_Player *pPlayer, SDL_Renderer **renderer,
+                      const char *url) {
   int ret;
   ret = Stream_init(&(pPlayer->stream), url);
   if (ret < 0) {
@@ -54,7 +54,7 @@ int VideoPlayer_init(VideoPlayer *pPlayer, SDL_Renderer **renderer,
   return 0;
 }
 
-void VideoPlayer_clean_up(VideoPlayer *pPlayer) {
+void Video_Player_clean_up(Video_Player *pPlayer) {
   Stream_clean_up(&(pPlayer->stream));
   Renderer_clean_up(pPlayer);
 }
@@ -139,7 +139,7 @@ static void Stream_clean_up(Stream *pStream) {
   avformat_close_input(&(pStream->pFormatCtx));
 }
 
-static int Renderer_init(VideoPlayer *pPlayer, SDL_Renderer **renderer) {
+static int Renderer_init(Video_Player *pPlayer, SDL_Renderer **renderer) {
   pPlayer->renderer.sdl_renderer = *renderer;
 
   pPlayer->renderer.sdl_texture = SDL_CreateTexture(
@@ -150,7 +150,7 @@ static int Renderer_init(VideoPlayer *pPlayer, SDL_Renderer **renderer) {
   return 0;
 }
 
-static void Renderer_clean_up(VideoPlayer *pPlayer) {
+static void Renderer_clean_up(Video_Player *pPlayer) {
   SDL_DestroyRenderer(pPlayer->renderer.sdl_renderer);
 }
 
