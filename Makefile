@@ -179,13 +179,14 @@ install-debug-sanitize:
 # ----------------------------------------
 # Check deps
 # ----------------------------------------
+
 check-deps:
 	@printf "Checking dependencies...\n"
-	@$(PKG) --exists sdl2 || (echo "ERROR: SDL2 not found"; exit 1)
-	@$(PKG) --exists libavformat || (echo "ERROR: FFmpeg (libavformat) not found"; exit 1)
-	@$(PKG) --exists libavcodec || (echo "ERROR: FFmpeg (libavcodec) not found"; exit 1)
-	@$(PKG) --exists libavutil || (echo "ERROR: FFmpeg (libavutil) not found"; exit 1)
-	@$(PKG) --exists libswscale || (echo "ERROR: FFmpeg (libswscale) not found"; exit 1)
+	@pkg-config --exists sdl2 || (echo "ERROR: SDL2 dev package not found"; exit 1)
+	@pkg-config --exists libavcodec || (echo "ERROR: libavcodec dev package not found"; exit 1)
+	@pkg-config --exists libavformat || (echo "ERROR: libavformat dev package not found"; exit 1)
+	@pkg-config --exists libavutil || (echo "ERROR: libavutil dev package not found"; exit 1)
+	@pkg-config --exists libswscale || (echo "ERROR: libswscale dev package not found"; exit 1)
 	@echo "All dependencies found."
 
 # ----------------------------------------
@@ -197,7 +198,7 @@ help:
 
 	@printf "Build targets:\n"
 	@printf "  make, make release          Build release binary (default)\n"
-	@printf "  make debug                  Build debug binary (-O0 + sanitizers)\n"
+	@printf "  make debug                  Build debug binary\n"
 	@printf "  make sanitize               Build release-like binary with sanitizers (-O2 + sanitizers)\n"
 	@printf "  make debug-sanitize         Build debug binary with sanitizers (-O0 + sanitizers)\n\n"
 
