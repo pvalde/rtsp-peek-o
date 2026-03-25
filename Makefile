@@ -32,6 +32,7 @@ LIBS = $(shell $(PKG) --libs $(PKG_PKGS))
 LIBS += -lm
 
 PUBLIC_INCS := $(filter-out %.c %.h,$(addprefix -I,$(wildcard include/*)))
+PUBLIC_INCS += $(filter-out %.c %.h,$(addprefix -I,$(wildcard external/*)))
 PRIVATE_INCS := $(filter-out %.c %.h,$(addprefix -I,$(wildcard src/*)))
 TESTS_INCS := $(filter-out %.c %.h, $(addprefix -I,$(wildcard tests*)))
 

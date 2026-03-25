@@ -53,14 +53,11 @@ cd rtsp-peek
 
 ### 3. Build
 ```
-# Release build (default)
-make
+# release
+make BUILD_TYPE=release
 
-# Debug build (-O0, symbols)
-make debug
-
-# Release build with sanitizers (address/undefined behavior)
-make sanitize
+# debug
+make BUILD_TYPE=debug
 ```
 
 ### 4. Install (optional)
@@ -77,23 +74,8 @@ make install PREFIX=/usr/local
 # if installed
 rtsp-peek 'rtsp://example.com/stream'
 
-# Run release binary
-make run
-
-# Run debug version in gdb
-make run-debug
-
-# Pass arguments via ARGS
-make run ARGS='rtsp://example.com/stream'
-```
-
-### 5. Install (optional)
-```
-# Install release binary to ~/.local/bin (default)
-make install
-
-# Specify a custom prefix
-make install PREFIX=/usr/local
+# from cloned dir
+./bin/release/rtsp-peek 'rtsp://example.com/stream'
 ```
 
 ## Usage
