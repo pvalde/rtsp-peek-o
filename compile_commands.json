@@ -12,14 +12,107 @@
       "-Iexternal/nuklear",
       "-Isrc/cli_args",
       "-Isrc/playback",
+      "-Isrc/stream",
       "-Isrc/video_player",
       "-c",
       "-o",
-      "build/release/rtsp-peek/obj/main.o",
+      "build/release/obj/main.o",
       "src/main.c"
     ],
     "directory": "/home/pedro/projects/rtsp-peek",
     "file": "/home/pedro/projects/rtsp-peek/src/main.c",
-    "output": "/home/pedro/projects/rtsp-peek/build/release/rtsp-peek/obj/main.o"
+    "output": "/home/pedro/projects/rtsp-peek/build/release/obj/main.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-O2",
+      "-I/usr/include/SDL2",
+      "-D_GNU_SOURCE=1",
+      "-D_REENTRANT",
+      "-I/usr/include/ffmpeg",
+      "-Isrc/cli_args",
+      "-Isrc/playback",
+      "-Isrc/stream",
+      "-Isrc/video_player",
+      "-c",
+      "-o",
+      "build/release/obj/cli_args/cli_args.o",
+      "src/cli_args/cli_args.c"
+    ],
+    "directory": "/home/pedro/projects/rtsp-peek",
+    "file": "/home/pedro/projects/rtsp-peek/src/cli_args/cli_args.c",
+    "output": "/home/pedro/projects/rtsp-peek/build/release/obj/cli_args/cli_args.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-O2",
+      "-I/usr/include/SDL2",
+      "-D_GNU_SOURCE=1",
+      "-D_REENTRANT",
+      "-I/usr/include/ffmpeg",
+      "-Isrc/cli_args",
+      "-Isrc/playback",
+      "-Isrc/stream",
+      "-Isrc/video_player",
+      "-c",
+      "-o",
+      "build/release/obj/playback/rtsp_playback.o",
+      "src/playback/rtsp_playback.c"
+    ],
+    "directory": "/home/pedro/projects/rtsp-peek",
+    "file": "/home/pedro/projects/rtsp-peek/src/playback/rtsp_playback.c",
+    "output": "/home/pedro/projects/rtsp-peek/build/release/obj/playback/rtsp_playback.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-O2",
+      "-I/usr/include/SDL2",
+      "-D_GNU_SOURCE=1",
+      "-D_REENTRANT",
+      "-I/usr/include/ffmpeg",
+      "-Isrc/cli_args",
+      "-Isrc/playback",
+      "-Isrc/stream",
+      "-Isrc/video_player",
+      "-c",
+      "-o",
+      "build/release/obj/stream/stream.o",
+      "src/stream/stream.c"
+    ],
+    "directory": "/home/pedro/projects/rtsp-peek",
+    "file": "/home/pedro/projects/rtsp-peek/src/stream/stream.c",
+    "output": "/home/pedro/projects/rtsp-peek/build/release/obj/stream/stream.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wextra",
+      "-O2",
+      "-I/usr/include/SDL2",
+      "-D_GNU_SOURCE=1",
+      "-D_REENTRANT",
+      "-I/usr/include/ffmpeg",
+      "-Isrc/cli_args",
+      "-Isrc/playback",
+      "-Isrc/stream",
+      "-Isrc/video_player",
+      "-c",
+      "-o",
+      "build/release/obj/video_player/video_player.o",
+      "src/video_player/video_player.c"
+    ],
+    "directory": "/home/pedro/projects/rtsp-peek",
+    "file": "/home/pedro/projects/rtsp-peek/src/video_player/video_player.c",
+    "output": "/home/pedro/projects/rtsp-peek/build/release/obj/video_player/video_player.o"
   }
 ]

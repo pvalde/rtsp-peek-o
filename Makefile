@@ -29,7 +29,7 @@ PKG = pkg-config
 PKG_PKGS = sdl2 libavformat libavcodec libavutil libswscale
 LIBS_INCS = $(shell $(PKG) --cflags $(PKG_PKGS))
 LIBS = $(shell $(PKG) --libs $(PKG_PKGS))
-LIBS += -lm
+LIBS += -lm # math libm
 
 PUBLIC_INCS := $(filter-out %.c %.h,$(addprefix -I,$(wildcard include/*)))
 PUBLIC_INCS += $(filter-out %.c %.h,$(addprefix -I,$(wildcard external/*)))
@@ -58,11 +58,11 @@ TESTS_SRCS := $(filter %.c,$(wildcard $(TESTS_DIR)/*/*))
 TESTS_SRCS += $(filter %.c,$(wildcard $(TESTS_DIR)/*))
 
 # ----------------------------------------
-# OBJS - EXEC
+# OBJS
 # ----------------------------------------
 BUILD_DIR := build
-BUILD_DIR_APP := $(BUILD_DIR)/$(BUILD_TYPE)/$(APP_NAME)
-BUILD_DIR_TESTS := $(BUILD_DIR)/$(BUILD_TYPE)/$(TESTS_DIR)       
+BUILD_DIR_APP := $(BUILD_DIR)/$(BUILD_TYPE)
+BUILD_DIR_TESTS := $(BUILD_DIR)/$(BUILD_TYPE)/$(TESTS_DIR)
 
 APP_MAIN_OBJ := $(BUILD_DIR_APP)/obj/main.o
 APP_OBJS := $(subst obj, $(BUILD_DIR_APP)/obj,$(subst src,obj,$(patsubst %.c,%.o,$(APP_SRCS))))
