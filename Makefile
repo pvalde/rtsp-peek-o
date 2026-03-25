@@ -11,13 +11,16 @@ CC 				= gcc
 COMMON_FLAGS = -Wall -Wextra
 CFLAGS_RELEASE = -O2
 CFLAGS_DEBUG = -g -O0
+CFLAGS_ASAN = -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer -g -O0
 
 ifeq ($(BUILD_TYPE),release)
   CFLAGS := $(COMMON_FLAGS) $(CFLAGS_RELEASE)
 else ifeq ($(BUILD_TYPE),debug)
   CFLAGS := $(COMMON_FLAGS) $(CFLAGS_DEBUG)
+else ifeq ($(BUILD_TYPE),asan)
+  CFLAGS := $(COMMON_FLAGS) $(CFLAGS_ASAN)
 else
-  $(error '$(BUILD_TYPE)' is not a valid BUILD_TYPE. Please use 'release' (default) or 'debug')
+  $(error '$(BUILD_TYPE)' is not a valid BUILD_TYPE. Please use 'release' (default), 'debug' or 'asan')
 endif
 
 # ----------------------------------------
@@ -35,11 +38,6 @@ PUBLIC_INCS := $(filter-out %.c %.h,$(addprefix -I,$(wildcard include/*)))
 PUBLIC_INCS += $(filter-out %.c %.h,$(addprefix -I,$(wildcard external/*)))
 PRIVATE_INCS := $(filter-out %.c %.h,$(addprefix -I,$(wildcard src/*)))
 TESTS_INCS := $(filter-out %.c %.h, $(addprefix -I,$(wildcard tests*)))
-
-# ----------------------------------------
-# SAN flags
-# ----------------------------------------
-SAN_FLAGS = -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer
 
 # ----------------------------------------
 # Dependency generation flags
