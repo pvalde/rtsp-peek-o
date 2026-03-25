@@ -9,32 +9,17 @@
       "-D_GNU_SOURCE=1",
       "-D_REENTRANT",
       "-I/usr/include/ffmpeg",
+      "-Iexternal/nuklear",
+      "-Isrc/cli_args",
+      "-Isrc/playback",
+      "-Isrc/video_player",
       "-c",
       "-o",
-      "build/release/main.o",
+      "build/release/rtsp-peek/obj/main.o",
       "src/main.c"
     ],
     "directory": "/home/pedro/projects/rtsp-peek",
     "file": "/home/pedro/projects/rtsp-peek/src/main.c",
-    "output": "/home/pedro/projects/rtsp-peek/build/release/main.o"
-  },
-  {
-    "arguments": [
-      "/usr/bin/gcc",
-      "-Wall",
-      "-Wextra",
-      "-O2",
-      "-I/usr/include/SDL2",
-      "-D_GNU_SOURCE=1",
-      "-D_REENTRANT",
-      "-I/usr/include/ffmpeg",
-      "-c",
-      "-o",
-      "build/release/video_player.o",
-      "src/video_player.c"
-    ],
-    "directory": "/home/pedro/projects/rtsp-peek",
-    "file": "/home/pedro/projects/rtsp-peek/src/video_player.c",
-    "output": "/home/pedro/projects/rtsp-peek/build/release/video_player.o"
+    "output": "/home/pedro/projects/rtsp-peek/build/release/rtsp-peek/obj/main.o"
   }
 ]
