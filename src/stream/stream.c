@@ -21,6 +21,7 @@ struct Stream *stream_create(const char *url, enum Stream_Protocol protocol) {
     }
 
     stream->frame_out_pix_fmt = AV_PIX_FMT_YUV420P;
+    stream->video_stream_id = -1;
     stream->url = strdup(url);
     if (stream->url == NULL)
         goto error_cleanup;

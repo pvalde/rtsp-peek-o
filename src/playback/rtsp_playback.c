@@ -76,6 +76,8 @@ static int update_rect(Video_Player *pPlayer, SDL_Rect *rect) {
                 return -1;
             }
 
+            // av_packet_unref(pPlayer->stream->packet);
+
             while (ret >= 0) {
                 ret = avcodec_receive_frame(pPlayer->stream->codec_ctx,
                                             pPlayer->stream->frame_in);
