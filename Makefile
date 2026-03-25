@@ -78,8 +78,8 @@ TESTS_TARGET := $(BIN_DIR)/$(APP_NAME)-tests
 # ----------------------------------------
 # Install paths
 # ----------------------------------------
-DESTDIR ?= $(HOME)/.local
-BIN_INSTALL_DIR := $(PREFIX)/bin
+DESTDIR ?= $(HOME)/.local/bin
+BIN_INSTALL_DIR := $(DESTDIR)
 
 # ----------------------------------------
 # RULES
@@ -115,14 +115,14 @@ run: $(TARGET)
 # ----------------------------------------
 
 install: $(TARGET)
-	@echo "Installing $(APP_NAME) ($(BUILD_TYPE)) to $(DESTDIR)$(BIN_INSTALL_DIR)..."
-	@mkdir -p $(DESTDIR)$(BIN_INSTALL_DIR)
-	@install -m 755 $(TARGET) $(DESTDIR)$(BIN_INSTALL_DIR)/$(APP_NAME)
+	@echo "Installing $(APP_NAME) ($(BUILD_TYPE)) to $(BIN_INSTALL_DIR)..."
+	@mkdir -p $(BIN_INSTALL_DIR)
+	@install -m 755 $(TARGET) $(BIN_INSTALL_DIR)/$(APP_NAME)
 	@echo "Successfully installed."
 
 uninstall:
 	@echo "Removing $(APP_NAME) from $(BIN_INSTALL_DIR)..."
-	@rm -f $(DESTDIR)$(BIN_INSTALL_DIR)/$(APP_NAME)
+	@rm -f $(BIN_INSTALL_DIR)/$(APP_NAME)
 	@echo "Successfully uninstalled."
 
 # ----------------------------------------

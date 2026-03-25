@@ -65,8 +65,14 @@ make BUILD_TYPE=debug
 # Install release binary to ~/.local/bin (default)
 make install
 
-# Specify a custom prefix
-make install PREFIX=/usr/local
+# Uninstall
+make uninstall
+
+# Specify a custom directory
+make install DESTDIR=/usr/local
+
+# Uninstall from custom directory
+make uninstall DESTDIR=/usr/local
 ```
 
 ### 5. Run
