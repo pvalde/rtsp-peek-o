@@ -1,6 +1,5 @@
 #include "cli_args.h"
-#include "rtsp_playback.h"
-#include "video_player.h"
+#include "stream.h"
 #include <SDL2/SDL.h>
 #include <stdio.h>
 
@@ -10,16 +9,24 @@ typedef struct {
     SDL_Window *window;
     SDL_Renderer *renderer;
     bool sdl_initialized;
-} SDL_Context;
+} Graphics_context;
 
-void SDL_clean_up(SDL_Context *ctx);
+typedef struct {
+    Stream **streams;
+    int length;
+} Streams_arr;
+
+void graphics_context_cleanup(Graphics_context *ctx);
+
+void main_loop(Graphics_context *ctx, Streams_arr *s_arr);
 
 int main(int argc, char *argv[]) {
+
+    Streams_arr streams_arr = {.streams = NULL, .length = 0};
+
     int ret;
     Cli_Args args = {0};
-    Video_Player *players = NULL;
-    int n_players_initialized = 0;
-    SDL_Context sdl_ctx = {
+    Graphics_context sdl_ctx = {
         .window = NULL, .renderer = NULL, .sdl_initialized = false};
 
     ret = parse_args(argc, argv, &args);
@@ -30,9 +37,9 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    players = calloc(args.n_of_rtsp_urls, sizeof(Video_Player));
-    if (!players) {
-        fprintf(stderr, "Failed to allocate memory for video players\n");
+    streams_arr.streams = calloc(args.n_of_rtsp_urls, sizeof(Stream *));
+    if (!streams_arr.streams) {
+        fprintf(stderr, "Failed to allocate memory for streams\n");
         ret = -1;
         goto cleanup;
     }
@@ -44,7 +51,7 @@ int main(int argc, char *argv[]) {
     }
     sdl_ctx.sdl_initialized = true;
 
-    avformat_network_init();
+    avformat_network_init(); // TODO check if remove is safe
 
     sdl_ctx.window = SDL_CreateWindow(PROG_NAME, SDL_WINDOWPOS_UNDEFINED,
                                       SDL_WINDOWPOS_UNDEFINED, 800, 600,
@@ -67,26 +74,29 @@ int main(int argc, char *argv[]) {
 
     SDL_GL_SetSwapInterval(1);
 
+    enum Stream_Protocol protocol = TCP;
     for (int i = 0; i < args.n_of_rtsp_urls; i++) {
-        if (Video_Player_init(&players[i], &sdl_ctx.renderer,
-                              args.rtsp_urls[i]) < 0) {
+        streams_arr.streams[i] = stream_create(args.rtsp_urls[i], protocol);
+        if (streams_arr.streams[i] == NULL) {
             ret = -1;
             goto cleanup;
-        } else {
-            n_players_initialized++;
         }
+        streams_arr.length++;
     }
 
-    ret = display_videos(players, args.n_of_rtsp_urls, sdl_ctx.renderer);
+    main_loop(&sdl_ctx, &streams_arr);
 
 cleanup:
-    if (players) {
-        for (int i = 0; i < n_players_initialized; i++) {
-            Video_Player_clean_up(&players[i]);
-        }
-        free(players);
+    for (int i = 0; i < streams_arr.length; i++) {
+        stream_destroy(&(streams_arr.streams[i]));
+        streams_arr.streams[i] = NULL;
     }
-    SDL_clean_up(&sdl_ctx);
+    if (streams_arr.streams != NULL) {
+        free(streams_arr.streams);
+        streams_arr.streams = NULL;
+    }
+
+    graphics_context_cleanup(&sdl_ctx);
     Cli_args_clean_up(&args);
     avformat_network_deinit();
     if (ret == 0)
@@ -94,7 +104,7 @@ cleanup:
     return ret < 0 ? -1 : 0;
 }
 
-void SDL_clean_up(SDL_Context *ctx) {
+void graphics_context_cleanup(Graphics_context *ctx) {
     if (!ctx)
         return;
 
@@ -112,4 +122,72 @@ void SDL_clean_up(SDL_Context *ctx) {
         SDL_Quit();
         ctx->sdl_initialized = false;
     }
+}
+
+void main_loop(Graphics_context *g_ctx, Streams_arr *s_arr) {
+    int running = 1;
+    int ren_w, ren_h;
+    SDL_GetRendererOutputSize(g_ctx->renderer, &ren_w, &ren_h);
+
+    float height_weight = 1.0 / (float)s_arr->length;
+    SDL_Rect pos_rects[s_arr->length];
+    struct Stream_Frame_Data frame_data[s_arr->length];
+
+    SDL_Texture **ind_textures = calloc(s_arr->length, sizeof(SDL_Texture *));
+    for (int i = 0; i < s_arr->length; i++) {
+        ind_textures[i] =
+            stream_get_sdl_texture(s_arr->streams[i], g_ctx->renderer);
+    }
+
+    SDL_Event event;
+    while (running) {
+
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) {
+                running = 0;
+            } else if (event.type == SDL_WINDOWEVENT &&
+                       event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                SDL_GetRendererOutputSize(g_ctx->renderer, &ren_w, &ren_h);
+            }
+        }
+
+        for (int i = 0; i < s_arr->length; i++) {
+            stream_get_decoded_frame(&(frame_data[i]), s_arr->streams[i]);
+        }
+
+        SDL_RenderClear(g_ctx->renderer);
+
+        int height = (int)(round)((float)ren_h * height_weight);
+        for (int i = 0; i < s_arr->length; i++) {
+
+            // make space
+            pos_rects[i].x = 0;
+            pos_rects[i].y = i * height;
+            pos_rects[i].w = ren_w;
+            pos_rects[i].h = height;
+
+            if (frame_data[i].frame != NULL) {
+                SDL_UpdateYUVTexture(ind_textures[i], NULL,
+                                     frame_data[i].frame->data[0],
+                                     frame_data[i].frame->linesize[0],
+                                     frame_data[i].frame->data[1],
+                                     frame_data[i].frame->linesize[1],
+                                     frame_data[i].frame->data[2],
+                                     frame_data[i].frame->linesize[2]);
+
+                SDL_RenderCopy(g_ctx->renderer, ind_textures[i], NULL,
+                               &pos_rects[i]);
+            }
+        }
+
+        SDL_RenderPresent(g_ctx->renderer);
+    }
+
+    for (int i = 0; i < s_arr->length; i++) {
+        if (ind_textures[i])
+            SDL_DestroyTexture(ind_textures[i]);
+    }
+
+    free(ind_textures);
+    ind_textures = NULL;
 }

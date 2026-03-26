@@ -22,9 +22,15 @@ struct Stream *stream_create(const char *url, enum Stream_Protocol protocol) {
 
     stream->frame_out_pix_fmt = AV_PIX_FMT_YUV420P;
     stream->video_stream_id = -1;
+
     stream->url = strdup(url);
     if (stream->url == NULL)
         goto error_cleanup;
+
+    stream->frame_tmp = av_frame_alloc();
+    if (stream->frame_tmp == NULL) {
+        goto error_cleanup;
+    }
 
     if (protocol == UDP)
         transport_protocol = "udp";
@@ -103,7 +109,7 @@ struct Stream *stream_create(const char *url, enum Stream_Protocol protocol) {
         stream->format_ctx->streams[stream->video_stream_id]
             ->codecpar->codec_id);
     if (stream->codec == NULL) {
-        fprintf(stderr, "Unsupported codec for '%s'\n", stream->url);
+        fprintf(stderr, "ERROR: Unsupported codec for '%s'\n", stream->url);
         goto error_cleanup;
     }
 
@@ -249,6 +255,11 @@ void stream_destroy(struct Stream **stream) {
             assert(s->format_ctx == NULL);
         }
 
+        if (s->frame_tmp) {
+            av_frame_free(&(s->frame_tmp));
+            s->frame_tmp = NULL;
+        }
+
         free(s->url);
         s->url = NULL;
 
@@ -256,4 +267,73 @@ void stream_destroy(struct Stream **stream) {
         s = NULL;
     }
     *stream = NULL;
+}
+
+int stream_get_decoded_frame(struct Stream_Frame_Data *out_frame_data,
+                             struct Stream *stream) {
+    int status = 0;
+    int has_new_frame = 0;
+    AVFrame *last_frame = stream->frame_tmp;
+
+    while (!has_new_frame) {
+
+        // get decoded frame
+        status = avcodec_receive_frame(stream->codec_ctx, stream->frame_in);
+        if (status == AVERROR(EAGAIN)) {
+            // read a packet from the stream
+            if (av_read_frame(stream->format_ctx, stream->packet) < 0) {
+                return -1; // no more packets
+            }
+
+            // send packet only if it is a video frame
+            if (stream->packet->stream_index == stream->video_stream_id) {
+                status = avcodec_send_packet(stream->codec_ctx, stream->packet);
+                if (status < 0) {
+                    fprintf(stderr, "ERROR: could not send packet ('%s').\n",
+                            stream->url);
+                    av_packet_unref(stream->packet);
+                    return -1;
+                }
+            }
+            av_packet_unref(stream->packet);
+        } else if (status < 0) {
+            fprintf(stderr, "ERROR: decoding failed ('%s').\n", stream->url);
+            return -1;
+        } else {
+            // frame received successfully
+            has_new_frame = 1;
+            av_frame_unref(last_frame);
+            av_frame_ref(last_frame, stream->frame_in);
+        }
+    }
+
+    // scale and populate output
+    if (has_new_frame) {
+        sws_scale(stream->sws_ctx, (uint8_t const *const *)last_frame->data,
+                  last_frame->linesize, 0, stream->codec_ctx->height,
+                  stream->frame_out->data, stream->frame_out->linesize);
+
+        out_frame_data->frame =
+            stream->frame_out; // must not be freed or modified from outside.
+        out_frame_data->x = 0;
+        out_frame_data->y = 0;
+        out_frame_data->w = stream->codec_ctx->width;
+        out_frame_data->h = stream->codec_ctx->height;
+    } else {
+        out_frame_data->frame = NULL;
+    }
+
+    if (has_new_frame) {
+        return 0;
+    } else {
+        return -1;
+    }
+}
+
+SDL_Texture *stream_get_sdl_texture(struct Stream *stream,
+                                    SDL_Renderer *renderer) {
+    SDL_Texture *texture = SDL_CreateTexture(
+        renderer, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING,
+        stream->codec_ctx->width, stream->codec_ctx->height);
+    return texture;
 }

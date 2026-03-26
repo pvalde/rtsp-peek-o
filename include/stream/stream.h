@@ -1,5 +1,5 @@
-#ifndef STREAM_PRIVATE_H
-#define STREAM_PRIVATE_H
+#ifndef STREAM_H
+#define STREAM_H
 
 #include "SDL_render.h"
 #include <libavcodec/avcodec.h>
@@ -10,21 +10,7 @@
 
 enum Stream_Protocol { TCP, UDP };
 
-struct Stream {
-    AVFormatContext *format_ctx;
-    const AVCodec *codec;
-    AVCodecContext *codec_ctx;
-    int video_stream_id;
-    char *url;
-    AVFrame *frame_in;
-    AVFrame *frame_out;
-    AVFrame *frame_tmp;
-    enum AVPixelFormat frame_out_pix_fmt;
-    uint8_t *buffer;
-    int frame_buff_size;
-    AVPacket *packet;
-    struct SwsContext *sws_ctx;
-};
+typedef struct Stream Stream;
 
 /**
  * @struct Stream_Frame_Data
@@ -85,24 +71,7 @@ void stream_destroy(struct Stream **stream);
 int stream_get_decoded_frame(struct Stream_Frame_Data *out_frame_data,
                              struct Stream *stream);
 
-/**
- * @brief Creates an SDL_Texture from a video Stream for rendering.
- *
- * The texture uses YUV format and streaming access, suitable for updating
- * each frame with video data.
- *
- * @param stream   Pointer to the Stream containing decoded video data.
- * @param renderer Pointer to the SDL_Renderer to create the texture for.
- * @return Pointer to an SDL_Texture, or NULL on failure.
- *
- * @note The caller is responsible for freeing the returned texture.
- *       Use SDL_DestroyTexture() when the texture is no longer needed:
- *
- *       SDL_Texture *tex = stream_get_sdl_texture(stream, renderer);
- *       ...
- *       SDL_DestroyTexture(tex); // free GPU and internal SDL resources
- */
 SDL_Texture *stream_get_sdl_texture(struct Stream *stream,
                                     SDL_Renderer *renderer);
 
-#endif // STREAM_PRIVATE_H
+#endif // STREAM_H

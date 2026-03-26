@@ -88,7 +88,7 @@ all: $(TARGET)
 
 $(TARGET): $(APP_MAIN_OBJ) $(APP_OBJS)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(LIBS_INCS) $(PUBLIC_INCS) $(PRIVATE_INCS) $^ -o $@ $(LIBS)
+	$(CC) $(CFLAGS) $(LIBS_INCS) $(PUBLIC_INCS) $^ -o $@ $(LIBS)
 
 $(APP_MAIN_OBJ): $(APP_MAIN_SRC)
 	@mkdir -p $(dir $@)
