@@ -35,9 +35,10 @@ LIBS = $(shell $(PKG) --libs $(PKG_PKGS))
 LIBS += -lm # math libm
 
 PUBLIC_INCS := $(filter-out %.c %.h,$(addprefix -I,$(wildcard include/*)))
-PUBLIC_INCS += $(filter-out %.c %.h,$(addprefix -I,$(wildcard external/*)))
+# PUBLIC_INCS += $(filter-out %.c %.h,$(addprefix -I,$(wildcard external/*)))
 PRIVATE_INCS := $(filter-out %.c %.h,$(addprefix -I,$(wildcard src/*)))
 TESTS_INCS := $(filter-out %.c %.h, $(addprefix -I,$(wildcard tests*)))
+EXTERNAL_INCS := $(filter-out %.c %h,$(addprefix -I,$(wildcard external/*)))
 
 # ----------------------------------------
 # Dependency generation flags
@@ -88,15 +89,15 @@ all: $(TARGET)
 
 $(TARGET): $(APP_MAIN_OBJ) $(APP_OBJS)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(LIBS_INCS) $(PUBLIC_INCS) $^ -o $@ $(LIBS)
+	$(CC) $(CFLAGS) $(LIBS_INCS) $(PUBLIC_INCS) $(EXTERNAL_INCS) $^ -o $@ $(LIBS)
 
 $(APP_MAIN_OBJ): $(APP_MAIN_SRC)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(DEPFLAGS) $(LIBS_INCS) $(PUBLIC_INCS) $(PRIVATE_INCS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(LIBS_INCS) $(PUBLIC_INCS) $(PRIVATE_INCS) $(EXTERNAL_INCS) -c $< -o $@
 
 $(APP_OBJS): $(BUILD_DIR_APP)/obj/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(DEPFLAGS) $(LIBS_INCS) $(PRIVATE_INCS) -c $< -o $@
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(LIBS_INCS) $(PUBLIC_INCS) $(PRIVATE_INCS) $(EXTERNAL_INCS) -c $< -o $@
 
 # TODO TESTS_TARGET, TESTS_OBJS
 

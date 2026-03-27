@@ -4,6 +4,9 @@
 
 #define BYTE_ALIGNMENT 32
 
+enum AVPixelFormat get_qsv_format(AVCodecContext *ctx,
+                                  const enum AVPixelFormat *pix_fmts);
+
 struct Stream *stream_create(const char *url, enum Stream_Protocol protocol) {
 
     int err_code = 0;

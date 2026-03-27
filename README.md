@@ -96,4 +96,9 @@ provided by the user’s system:
 - SDL2 - zlib license.
 - FFmpeg (libavformat, libavcodec, libavutil, libswscale) - LGPL or GPL license.
 
-No external library code is included in this repository.
+No code for those libraries is included in this repository.
+
+This project also uses the Nuklear library (an immediate-mode GUI library). It is included via header
+files located in `external/nuklear`, which contain the library's source code.
+
+Nuklear is licensed under the MIT License or public domain.
