@@ -12,6 +12,7 @@
 #include "nuklear_sdl_renderer.h"
 #include "stream.h"
 #include <SDL2/SDL.h>
+#include <pthread.h>
 #include <stdio.h>
 
 #define PROG_NAME "rtsp-peek"
@@ -38,6 +39,7 @@ int main(int argc, char *argv[]) {
 
     int ret;
     Cli_Args args = {0};
+
     Graphics_context sdl_ctx = {
         .window = NULL, .renderer = NULL, .sdl_initialized = false};
 
@@ -49,6 +51,8 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
+    pthread_t threads[args.n_of_rtsp_urls];
+    struct Stream_Create_Params threads_result[args.n_of_rtsp_urls];
     streams_arr.streams = calloc(args.n_of_rtsp_urls, sizeof(Stream *));
     if (!streams_arr.streams) {
         fprintf(stderr, "Failed to allocate memory for streams\n");
@@ -88,13 +92,41 @@ int main(int argc, char *argv[]) {
     SDL_GL_SetSwapInterval(1);
 
     enum Stream_Protocol protocol = UDP;
+    /* for (int i = 0; i < args.n_of_rtsp_urls; i++) { */
+    /*     streams_arr.streams[i] = stream_create(args.rtsp_urls[i], protocol);
+     */
+    /*     if (streams_arr.streams[i] == NULL) { */
+    /*         ret = -1; */
+    /*         goto cleanup; */
+    /*     } */
+    /*     streams_arr.length++; */
+    /* } */
+
+    // using threads
+
     for (int i = 0; i < args.n_of_rtsp_urls; i++) {
-        streams_arr.streams[i] = stream_create(args.rtsp_urls[i], protocol);
-        if (streams_arr.streams[i] == NULL) {
+        threads_result[i].in_protocol = protocol;
+        threads_result[i].out_stream = NULL;
+        threads_result[i].in_url = args.rtsp_urls[i];
+        threads_result[i].out_return_val = 1;
+        pthread_create(&threads[i], NULL, stream_create_thread,
+                       &threads_result[i]);
+    }
+
+    for (int i = 0; i < args.n_of_rtsp_urls; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    for (int i = 0; i < args.n_of_rtsp_urls; i++) {
+        streams_arr.streams[i] = threads_result[i].out_stream;
+        streams_arr.length++;
+    }
+
+    for (int i = 0; i < args.n_of_rtsp_urls; i++) {
+        if (threads_result[i].out_return_val < 0) {
             ret = -1;
             goto cleanup;
         }
-        streams_arr.length++;
     }
 
     main_loop(&sdl_ctx, &streams_arr);

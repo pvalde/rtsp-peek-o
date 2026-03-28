@@ -9,6 +9,11 @@ enum AVPixelFormat get_qsv_format(AVCodecContext *ctx,
 
 struct Stream *stream_create(const char *url, enum Stream_Protocol protocol) {
 
+    if (url == NULL) {
+        fprintf(stderr, "ERROR: url is NULL\n");
+        return NULL;
+    }
+
     int err_code = 0;
     char *transport_protocol = NULL;
     char err_msg[AV_ERROR_MAX_STRING_SIZE];
@@ -258,7 +263,7 @@ void stream_destroy(struct Stream **stream) {
             assert(s->format_ctx == NULL);
         }
 
-        if (s->frame_tmp) {
+        if (s->frame_tmp != NULL) {
             av_frame_free(&(s->frame_tmp));
             s->frame_tmp = NULL;
         }
@@ -339,4 +344,16 @@ SDL_Texture *stream_get_sdl_texture(struct Stream *stream,
         renderer, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING,
         stream->codec_ctx->width, stream->codec_ctx->height);
     return texture;
+}
+
+void *stream_create_thread(void *arg) {
+    struct Stream_Create_Params *shared_vals =
+        (struct Stream_Create_Params *)arg;
+
+    shared_vals->out_stream =
+        stream_create(shared_vals->in_url, shared_vals->in_protocol);
+
+    shared_vals->out_return_val = (shared_vals->out_stream == NULL) ? -1 : 0;
+
+    return NULL;
 }
