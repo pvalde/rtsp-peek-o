@@ -10,9 +10,10 @@
 #include "menu_bar.h"
 #include "nuklear.h"
 #include "nuklear_sdl_renderer.h"
-#include "stream.h"
+#include "rtsp_stream.h"
 #include <SDL2/SDL.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include <stdio.h>
 
 #define PROG_NAME "rtsp-peek"
@@ -25,7 +26,7 @@ typedef struct {
 } Graphics_context;
 
 typedef struct {
-    Stream **streams;
+    Rtsp_Stream **stream;
     int length;
 } Streams_arr;
 
@@ -35,7 +36,7 @@ void main_loop(Graphics_context *ctx, Streams_arr *s_arr);
 
 int main(int argc, char *argv[]) {
 
-    Streams_arr streams_arr = {.streams = NULL, .length = 0};
+    Streams_arr streams_arr = {.stream = NULL, .length = 0};
 
     int ret;
     Cli_Args args = {0};
@@ -52,9 +53,9 @@ int main(int argc, char *argv[]) {
     }
 
     pthread_t threads[args.n_of_rtsp_urls];
-    struct Stream_Create_Params threads_result[args.n_of_rtsp_urls];
-    streams_arr.streams = calloc(args.n_of_rtsp_urls, sizeof(Stream *));
-    if (!streams_arr.streams) {
+    struct Rtsp_Stream_Create_Params threads_result[args.n_of_rtsp_urls];
+    streams_arr.stream = calloc(args.n_of_rtsp_urls, sizeof(Rtsp_Stream *));
+    if (!streams_arr.stream) {
         fprintf(stderr, "Failed to allocate memory for streams\n");
         ret = -1;
         goto cleanup;
@@ -91,25 +92,14 @@ int main(int argc, char *argv[]) {
 
     SDL_GL_SetSwapInterval(1);
 
-    enum Stream_Protocol protocol = UDP;
-    /* for (int i = 0; i < args.n_of_rtsp_urls; i++) { */
-    /*     streams_arr.streams[i] = stream_create(args.rtsp_urls[i], protocol);
-     */
-    /*     if (streams_arr.streams[i] == NULL) { */
-    /*         ret = -1; */
-    /*         goto cleanup; */
-    /*     } */
-    /*     streams_arr.length++; */
-    /* } */
-
-    // using threads
+    enum Transport_Protocol protocol = TCP;
 
     for (int i = 0; i < args.n_of_rtsp_urls; i++) {
         threads_result[i].in_protocol = protocol;
         threads_result[i].out_stream = NULL;
         threads_result[i].in_url = args.rtsp_urls[i];
         threads_result[i].out_return_val = 1;
-        pthread_create(&threads[i], NULL, stream_create_thread,
+        pthread_create(&threads[i], NULL, rtsp_stream_threaded_create,
                        &threads_result[i]);
     }
 
@@ -118,7 +108,7 @@ int main(int argc, char *argv[]) {
     }
 
     for (int i = 0; i < args.n_of_rtsp_urls; i++) {
-        streams_arr.streams[i] = threads_result[i].out_stream;
+        streams_arr.stream[i] = threads_result[i].out_stream;
         streams_arr.length++;
     }
 
@@ -133,12 +123,12 @@ int main(int argc, char *argv[]) {
 
 cleanup:
     for (int i = 0; i < streams_arr.length; i++) {
-        stream_destroy(&(streams_arr.streams[i]));
-        streams_arr.streams[i] = NULL;
+        rtsp_stream_destroy(&(streams_arr.stream[i]));
+        streams_arr.stream[i] = NULL;
     }
-    if (streams_arr.streams != NULL) {
-        free(streams_arr.streams);
-        streams_arr.streams = NULL;
+    if (streams_arr.stream != NULL) {
+        free(streams_arr.stream);
+        streams_arr.stream = NULL;
     }
 
     graphics_context_cleanup(&sdl_ctx);
@@ -176,12 +166,11 @@ void main_loop(Graphics_context *sdl_ctx, Streams_arr *s_arr) {
 
     float height_weight = 1.0 / (float)s_arr->length;
     SDL_Rect pos_rects[s_arr->length];
-    struct Stream_Frame_Data frame_data[s_arr->length];
 
     SDL_Texture **ind_textures = calloc(s_arr->length, sizeof(SDL_Texture *));
     for (int i = 0; i < s_arr->length; i++) {
         ind_textures[i] =
-            stream_get_sdl_texture(s_arr->streams[i], sdl_ctx->renderer);
+            rtsp_stream_get_sdl_texture(s_arr->stream[i], sdl_ctx->renderer);
     }
 
     SDL_Event event;
@@ -199,6 +188,25 @@ void main_loop(Graphics_context *sdl_ctx, Streams_arr *s_arr) {
     nk_sdl_font_stash_end();
     nk_style_set_font(nk_ctx, &font->handle);
 
+    /* start frame decoding in threads */
+    pthread_t decoding_frame_threads[s_arr->length];
+    pthread_mutex_t decoding_frame_mutexes[s_arr->length];
+    struct Rtsp_Stream_Get_Frame_Params thread_args[s_arr->length];
+
+    for (int i = 0; i < s_arr->length; i++) {
+        // setting arguments
+        thread_args[i].mutex = &(decoding_frame_mutexes[i]);
+        atomic_store(&(thread_args[i].stop), 0);
+        atomic_store(&(thread_args[i].thread_status), 1);
+        thread_args[i].out_frame_data = NULL;
+        thread_args[i].stream = s_arr->stream[i];
+
+        // init mutex
+        pthread_mutex_init(&(decoding_frame_mutexes[i]), NULL);
+
+        pthread_create(&(decoding_frame_threads[i]), NULL,
+                       rtsp_stream_threaded_get_frame, &(thread_args[i]));
+    }
     while (running) {
         nk_input_begin(nk_ctx);
         while (SDL_PollEvent(&event)) {
@@ -235,7 +243,31 @@ void main_loop(Graphics_context *sdl_ctx, Streams_arr *s_arr) {
         nk_end(nk_ctx);
 
         for (int i = 0; i < s_arr->length; i++) {
-            stream_get_decoded_frame(&(frame_data[i]), s_arr->streams[i]);
+            switch (atomic_load(&(thread_args[i].thread_status))) {
+            case 0:
+                // thread is running normally
+                break;
+            case 1:
+                fprintf(stderr,
+                        "WARNING: decoding thread no. %d has not finished its "
+                        "initialization yet.\n",
+                        i);
+                break;
+            case -1:
+                fprintf(stderr,
+                        "ERROR: decoding thread no. %d "
+                        "has failed\n",
+                        i);
+                running = 0;
+                break;
+            case -2:
+                fprintf(stderr,
+                        "ERROR: decoding thread no. %d has failed at "
+                        "initialization stage\n",
+                        i);
+                running = 0;
+                break;
+            }
         }
 
         int height =
@@ -248,23 +280,40 @@ void main_loop(Graphics_context *sdl_ctx, Streams_arr *s_arr) {
             pos_rects[i].w = ren_w;
             pos_rects[i].h = height;
 
-            if (frame_data[i].frame != NULL) {
-                SDL_UpdateYUVTexture(ind_textures[i], NULL,
-                                     frame_data[i].frame->data[0],
-                                     frame_data[i].frame->linesize[0],
-                                     frame_data[i].frame->data[1],
-                                     frame_data[i].frame->linesize[1],
-                                     frame_data[i].frame->data[2],
-                                     frame_data[i].frame->linesize[2]);
+            pthread_mutex_lock(&(decoding_frame_mutexes[i]));
+            AVFrame *frame = thread_args[i].out_frame_data;
+            if (frame) {
+                SDL_UpdateYUVTexture(ind_textures[i], NULL, frame->data[0],
+                                     frame->linesize[0], frame->data[1],
+                                     frame->linesize[1], frame->data[2],
+                                     frame->linesize[2]);
 
                 SDL_RenderCopy(sdl_ctx->renderer, ind_textures[i], NULL,
                                &pos_rects[i]);
             }
+            pthread_mutex_unlock(&(decoding_frame_mutexes[i]));
         }
 
         nk_sdl_render(NK_ANTI_ALIASING_ON);
 
         SDL_RenderPresent(sdl_ctx->renderer);
+    }
+
+    // send stop signal to threads
+    for (int i = 0; i < s_arr->length; i++) {
+        atomic_store(&(thread_args[i].stop), 1);
+    }
+
+    // wait for threads to stop
+    for (int i = 0; i < s_arr->length; i++) {
+        while (!atomic_load(&(thread_args[i].thread_finished))) {
+            ;
+        }
+        fprintf(stderr, "Decoding thread no. %d finished.\n", i);
+    }
+
+    for (int i = 0; i < s_arr->length; i++) {
+        pthread_join(decoding_frame_threads[i], NULL);
     }
 
     for (int i = 0; i < s_arr->length; i++) {

@@ -8,7 +8,7 @@ APP_NAME := rtsp-peek
 CC 				= gcc
 
 # COMMON_FLAGS = -Wall -Wextra -Werror -Wshadow -Wconversion
-COMMON_FLAGS = -Wall -Wextra
+COMMON_FLAGS = -Wall -Wextra -pthread
 CFLAGS_RELEASE = -O2
 CFLAGS_DEBUG = -g -O0
 CFLAGS_ASAN = -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer -g -O0

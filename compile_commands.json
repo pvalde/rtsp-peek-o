@@ -4,24 +4,25 @@
       "/usr/bin/gcc",
       "-Wall",
       "-Wextra",
+      "-pthread",
       "-O2",
       "-I/usr/include/SDL2",
       "-D_GNU_SOURCE=1",
       "-D_REENTRANT",
       "-I/usr/include/ffmpeg",
       "-Iinclude/gui",
-      "-Iinclude/stream",
+      "-Iinclude/rtsp_stream",
       "-Isrc/cli_args",
       "-Isrc/gui",
-      "-Isrc/stream",
+      "-Isrc/rtsp_stream",
       "-Iexternal/nuklear",
       "-c",
       "-o",
-      "build/release/obj/main.o",
-      "src/main.c"
+      "build/release/obj/rtsp_stream/rtsp_stream.o",
+      "src/rtsp_stream/rtsp_stream.c"
     ],
     "directory": "/home/pedro/projects/rtsp-peek",
-    "file": "/home/pedro/projects/rtsp-peek/src/main.c",
-    "output": "/home/pedro/projects/rtsp-peek/build/release/obj/main.o"
+    "file": "/home/pedro/projects/rtsp-peek/src/rtsp_stream/rtsp_stream.c",
+    "output": "/home/pedro/projects/rtsp-peek/build/release/obj/rtsp_stream/rtsp_stream.o"
   }
 ]
