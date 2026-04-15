@@ -30,16 +30,33 @@ typedef struct {
     int length;
 } Streams_arr;
 
+typedef struct {
+    int rows;
+    int columns;
+} Layout;
+
+typedef struct {
+    char **rtsp_urls;
+    int rtsp_urls_len;
+    Layout layout;
+    Streams_arr streams_arr;
+} Main_State;
+
 void graphics_context_cleanup(Graphics_context *ctx);
 
 void main_loop(Graphics_context *ctx, Streams_arr *s_arr);
 
+void main_loop2(Graphics_context *sdl_ctx, Main_State *main_state);
+
+int set_pos(SDL_Rect *out_pos_rect, int index, Layout layout,
+            int renderer_height, int renderer_width, int padding_top);
+
 int main(int argc, char *argv[]) {
 
     Streams_arr streams_arr = {.stream = NULL, .length = 0};
-
     int ret;
     Cli_Args args = {0};
+    Main_State main_state = {0};
 
     Graphics_context sdl_ctx = {
         .window = NULL, .renderer = NULL, .sdl_initialized = false};
@@ -52,9 +69,17 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    pthread_t threads[args.n_of_rtsp_urls];
-    struct Rtsp_Stream_Create_Params threads_result[args.n_of_rtsp_urls];
-    streams_arr.stream = calloc(args.n_of_rtsp_urls, sizeof(Rtsp_Stream *));
+    main_state.rtsp_urls = args.rtsp_urls;
+    main_state.rtsp_urls_len = args.n_of_rtsp_urls;
+    /* main_state.layout.rows = main_state.rtsp_urls_len; // default value */
+    /* main_state.layout.columns = 1;                     // default value */
+    main_state.layout.rows = main_state.rtsp_urls_len;
+    main_state.layout.columns = 1;
+
+    pthread_t threads[main_state.rtsp_urls_len];
+    struct Rtsp_Stream_Create_Params threads_result[main_state.rtsp_urls_len];
+    streams_arr.stream =
+        calloc(main_state.rtsp_urls_len, sizeof(Rtsp_Stream *));
     if (!streams_arr.stream) {
         fprintf(stderr, "Failed to allocate memory for streams\n");
         ret = -1;
@@ -94,32 +119,35 @@ int main(int argc, char *argv[]) {
 
     enum Transport_Protocol protocol = TCP;
 
-    for (int i = 0; i < args.n_of_rtsp_urls; i++) {
+    for (int i = 0; i < main_state.rtsp_urls_len; i++) {
         threads_result[i].in_protocol = protocol;
         threads_result[i].out_stream = NULL;
-        threads_result[i].in_url = args.rtsp_urls[i];
+        threads_result[i].in_url = main_state.rtsp_urls[i];
         threads_result[i].out_return_val = 1;
         pthread_create(&threads[i], NULL, rtsp_stream_threaded_create,
                        &threads_result[i]);
     }
 
-    for (int i = 0; i < args.n_of_rtsp_urls; i++) {
+    for (int i = 0; i < main_state.rtsp_urls_len; i++) {
         pthread_join(threads[i], NULL);
     }
 
-    for (int i = 0; i < args.n_of_rtsp_urls; i++) {
+    for (int i = 0; i < main_state.rtsp_urls_len; i++) {
         streams_arr.stream[i] = threads_result[i].out_stream;
         streams_arr.length++;
     }
 
-    for (int i = 0; i < args.n_of_rtsp_urls; i++) {
+    for (int i = 0; i < main_state.rtsp_urls_len; i++) {
         if (threads_result[i].out_return_val < 0) {
             ret = -1;
             goto cleanup;
         }
     }
 
-    main_loop(&sdl_ctx, &streams_arr);
+    main_state.streams_arr = streams_arr;
+
+    // main_loop(&sdl_ctx, &streams_arr);
+    main_loop2(&sdl_ctx, &main_state);
 
 cleanup:
     for (int i = 0; i < streams_arr.length; i++) {
@@ -324,4 +352,243 @@ void main_loop(Graphics_context *sdl_ctx, Streams_arr *s_arr) {
     nk_sdl_shutdown();
     free(ind_textures);
     ind_textures = NULL;
+}
+
+void main_loop2(Graphics_context *sdl_ctx, Main_State *main_state) {
+    int running = 1;
+    int ren_w, ren_h;
+    SDL_GetRendererOutputSize(sdl_ctx->renderer, &ren_w, &ren_h);
+
+    SDL_Rect pos_rects[main_state->streams_arr.length];
+
+    SDL_Texture **ind_textures =
+        calloc(main_state->streams_arr.length, sizeof(SDL_Texture *));
+    for (int i = 0; i < main_state->streams_arr.length; i++) {
+        ind_textures[i] = rtsp_stream_get_sdl_texture(
+            main_state->streams_arr.stream[i], sdl_ctx->renderer);
+    }
+
+    SDL_Event event;
+
+    /* NK GUI */
+    struct nk_rect menu_bound = nk_rect(0, 0, ren_w, MENU_BAR_HEIGHT);
+    nk_flags window_flags = NK_WINDOW_BORDER | NK_WINDOW_NO_SCROLLBAR;
+
+    struct nk_context *nk_ctx = nk_sdl_init(sdl_ctx->window, sdl_ctx->renderer);
+    struct nk_font_atlas *atlas;
+    struct nk_font *font;
+
+    nk_sdl_font_stash_begin(&atlas);
+    font = nk_font_atlas_add_default(atlas, 14, 0);
+    nk_sdl_font_stash_end();
+    nk_style_set_font(nk_ctx, &font->handle);
+
+    /* start frame decoding in threads */
+    pthread_t decoding_frame_threads[main_state->streams_arr.length];
+    pthread_mutex_t decoding_frame_mutexes[main_state->streams_arr.length];
+    struct Rtsp_Stream_Get_Frame_Params
+        thread_args[main_state->streams_arr.length];
+
+    for (int i = 0; i < main_state->streams_arr.length; i++) {
+        // setting arguments
+        thread_args[i].mutex = &(decoding_frame_mutexes[i]);
+        atomic_store(&(thread_args[i].stop), 0);
+        atomic_store(&(thread_args[i].thread_status), 1);
+        thread_args[i].out_frame_data = NULL;
+        thread_args[i].stream = main_state->streams_arr.stream[i];
+
+        // init mutex
+        pthread_mutex_init(&(decoding_frame_mutexes[i]), NULL);
+
+        pthread_create(&(decoding_frame_threads[i]), NULL,
+                       rtsp_stream_threaded_get_frame, &(thread_args[i]));
+    }
+    while (running) {
+        nk_input_begin(nk_ctx);
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT) {
+                running = 0;
+            } else if (event.type == SDL_WINDOWEVENT &&
+                       event.window.event == SDL_WINDOWEVENT_RESIZED) {
+                SDL_GetRendererOutputSize(sdl_ctx->renderer, &ren_w, &ren_h);
+                menu_bound = nk_rect(0, 0, ren_w, MENU_BAR_HEIGHT);
+            }
+            nk_sdl_handle_event(&event);
+        }
+        nk_sdl_handle_grab();
+        nk_input_end(nk_ctx);
+
+        SDL_RenderClear(sdl_ctx->renderer);
+
+        /* GUI */
+
+        /* Top menu */
+        if (nk_begin(nk_ctx, "MENU_BAR", menu_bound, window_flags)) {
+
+            nk_layout_row_begin(nk_ctx, NK_STATIC, 25, 5);
+
+            nk_layout_row_push(nk_ctx, 60);
+            if (nk_menu_begin_label(nk_ctx, "MENU", NK_TEXT_LEFT,
+                                    nk_vec2(200, 600))) {
+
+                menu_quit(nk_ctx, &running);
+                nk_menu_end(nk_ctx);
+            }
+        }
+
+        nk_end(nk_ctx);
+
+        for (int i = 0; i < main_state->streams_arr.length; i++) {
+            switch (atomic_load(&(thread_args[i].thread_status))) {
+            case 0:
+                // thread is running normally
+                break;
+            case 1:
+                fprintf(stderr,
+                        "WARNING: decoding thread no. %d has not finished its "
+                        "initialization yet.\n",
+                        i);
+                break;
+            case -1:
+                fprintf(stderr,
+                        "ERROR: decoding thread no. %d "
+                        "has failed\n",
+                        i);
+                running = 0;
+                break;
+            case -2:
+                fprintf(stderr,
+                        "ERROR: decoding thread no. %d has failed at "
+                        "initialization stage\n",
+                        i);
+                running = 0;
+                break;
+            }
+        }
+
+        for (int i = 0; i < main_state->streams_arr.length; i++) {
+            if (set_pos(&(pos_rects[i]), i, main_state->layout, ren_h, ren_w,
+                        MENU_BAR_HEIGHT) == 0) {
+
+                pthread_mutex_lock(&(decoding_frame_mutexes[i]));
+                AVFrame *frame = thread_args[i].out_frame_data;
+                if (frame) {
+                    SDL_UpdateYUVTexture(ind_textures[i], NULL, frame->data[0],
+                                         frame->linesize[0], frame->data[1],
+                                         frame->linesize[1], frame->data[2],
+                                         frame->linesize[2]);
+
+                    SDL_RenderCopy(sdl_ctx->renderer, ind_textures[i], NULL,
+                                   &pos_rects[i]);
+                }
+
+                pthread_mutex_unlock(&(decoding_frame_mutexes[i]));
+            }
+        }
+
+        nk_sdl_render(NK_ANTI_ALIASING_ON);
+
+        SDL_RenderPresent(sdl_ctx->renderer);
+    }
+
+    // send stop signal to threads
+    for (int i = 0; i < main_state->streams_arr.length; i++) {
+        atomic_store(&(thread_args[i].stop), 1);
+    }
+
+    // wait for threads to stop
+    for (int i = 0; i < main_state->streams_arr.length; i++) {
+        while (!atomic_load(&(thread_args[i].thread_finished))) {
+            ;
+        }
+        fprintf(stderr, "Decoding thread no. %d finished.\n", i);
+    }
+
+    for (int i = 0; i < main_state->streams_arr.length; i++) {
+        pthread_join(decoding_frame_threads[i], NULL);
+    }
+
+    for (int i = 0; i < main_state->streams_arr.length; i++) {
+        if (ind_textures[i])
+            SDL_DestroyTexture(ind_textures[i]);
+    }
+
+    nk_sdl_shutdown();
+    free(ind_textures);
+    ind_textures = NULL;
+}
+
+/**
+ * @brief Computes the position and size of a grid cell in a renderer.
+ *
+ * Maps a linear index (row-major order) into a 2D grid defined by the
+ * given layout, and writes the resulting rectangle into @p out_pos_rect.
+ *
+ * The rendering area is divided evenly into `layout.rows` ×
+ * `layout.columns` cells. Each cell has equal width and height. A vertical
+ * offset (`padding_top`) is applied to all rows.
+ *
+ * Index mapping:
+ * - Row    = index / layout.columns
+ * - Column = index % layout.columns
+ *
+ * @param[out] out_pos_rect     Output SDL_Rect to store computed position/size.
+ * @param[in]  index            Linear index in row-major order.
+ * @param[in]  layout           Grid layout (must have rows > 0 and columns >
+ * 0).
+ * @param[in]  renderer_height  Total height of the rendering area.
+ * @param[in]  renderer_width   Total width of the rendering area.
+ * @param[in]  padding_top      Vertical offset applied before grid rendering.
+ *
+ * @return 0   Success.
+ * @return -1  Index exceeds grid capacity (rows * columns).
+ * @return -2  Invalid layout (rows < 1 or columns < 1).
+ * @return -3  Negative index.
+ * @return -4  NULL pointer passed for @p out_pos_rect.
+ *
+ * @note Uses floating-point division and rounding for positioning.
+ * @note If rows or columns equals 1, the full dimension is used on that axis.
+ */
+int set_pos(SDL_Rect *out_pos_rect, int index, Layout layout,
+            int renderer_height, int renderer_width, int padding_top) {
+
+    if (!out_pos_rect) {
+        return -4; // NULL pointer
+    }
+
+    if ((layout.columns < 1) || (layout.rows < 1)) {
+        return -2; // invalid layout values.
+    }
+
+    if (index < 0) {
+        return -3; // invalid index value.
+    }
+
+    if ((index) >= (layout.rows * layout.columns)) {
+        return -1; // no space to render
+    }
+
+    // 0 indicates first row/column
+
+    // ROW POS = INDEX / N_OF_COLS
+    int grid_position_row =
+        index / layout.columns; // division by 0 is not possible.
+
+    // COL POS = POS % N_OF_COLS
+    int grid_position_column = index % layout.columns;
+
+    float row_weight =
+        layout.rows > 1 ? ((float)renderer_height - padding_top) / layout.rows
+                        : (float)renderer_height - padding_top;
+    float column_weight = layout.columns > 1
+                              ? (float)renderer_width / layout.columns
+                              : (float)renderer_width;
+
+    out_pos_rect->x = (int)(round)(column_weight * (grid_position_column));
+    out_pos_rect->y =
+        (int)(round)((row_weight * (grid_position_row)) + padding_top);
+    out_pos_rect->w = column_weight;
+    out_pos_rect->h = row_weight;
+
+    return 0;
 }
