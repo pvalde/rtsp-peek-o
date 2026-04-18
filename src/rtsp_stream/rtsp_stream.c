@@ -530,3 +530,7 @@ cleanup:
     atomic_store(&(shared_vars->thread_finished), 1);
     return NULL;
 }
+
+const char *rtsp_stream_get_stream_url(struct Rtsp_Stream *stream) {
+    return stream->url;
+}

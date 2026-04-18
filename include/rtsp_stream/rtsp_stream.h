@@ -182,4 +182,6 @@ stream.
  */
 void *rtsp_stream_threaded_get_frame(void *arg);
 
+const char *rtsp_stream_get_stream_url(struct Rtsp_Stream *stream);
+
 #endif // RTSP_STREAM_H

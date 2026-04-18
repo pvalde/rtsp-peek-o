@@ -1,0 +1,3 @@
+leak:FcPatternObjectInsertElt
+leak:pango_fc_font_map
+leak:gtk_label_measure

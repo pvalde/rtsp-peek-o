@@ -12,17 +12,19 @@
       "-I/usr/include/ffmpeg",
       "-Iinclude/gui",
       "-Iinclude/rtsp_stream",
+      "-Iinclude/stream_manager",
       "-Isrc/cli_args",
       "-Isrc/gui",
       "-Isrc/rtsp_stream",
+      "-Isrc/stream_manager",
       "-Iexternal/nuklear",
       "-c",
       "-o",
-      "build/release/obj/rtsp_stream/rtsp_stream.o",
-      "src/rtsp_stream/rtsp_stream.c"
+      "build/release/obj/stream_manager/stream_manager.o",
+      "src/stream_manager/stream_manager.c"
     ],
     "directory": "/home/pedro/projects/rtsp-peek",
-    "file": "/home/pedro/projects/rtsp-peek/src/rtsp_stream/rtsp_stream.c",
-    "output": "/home/pedro/projects/rtsp-peek/build/release/obj/rtsp_stream/rtsp_stream.o"
+    "file": "/home/pedro/projects/rtsp-peek/src/stream_manager/stream_manager.c",
+    "output": "/home/pedro/projects/rtsp-peek/build/release/obj/stream_manager/stream_manager.o"
   }
 ]
