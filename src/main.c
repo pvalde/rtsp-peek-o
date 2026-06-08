@@ -1,4 +1,3 @@
-#include "cli_args.h"
 #include <stdbool.h>
 #define NK_INCLUDE_FIXED_TYPES
 #define NK_INCLUDE_STANDARD_IO
@@ -10,6 +9,7 @@
 #include "menu_bar.h"
 #include "nuklear.h"
 #include "nuklear_sdl_renderer.h"
+#include "options.h"
 #include "rtsp_stream.h"
 #include "stream_manager.h"
 #include <SDL2/SDL.h>
@@ -19,6 +19,8 @@
 
 #define PROG_NAME "rtsp-peek"
 #define MENU_BAR_HEIGHT 35
+#define MAX_URL_LENGTH 1024
+#define MAX_URLS 16
 
 typedef struct {
     SDL_Window *window;
@@ -33,7 +35,7 @@ typedef struct {
 
 typedef struct {
     char **rtsp_urls;
-    int rtsp_urls_len;
+    int rtsp_urls_count;
     Layout layout;
     SM_Data *sm_data;
 } Main_State;
@@ -45,38 +47,122 @@ void main_loop(Graphics_context *sdl_ctx, Main_State *main_state);
 int set_pos(SDL_Rect *out_pos_rect, int index, Layout layout,
             int renderer_height, int renderer_width, int padding_top);
 
+void print_usage(const char *prog_name) {
+    printf("Usage: %s [OPTIONS] [URL1 URL2 ...]\n\n", prog_name);
+    printf("RTSP stream grid viewer.\n\n");
+    printf("Options:\n");
+    printf("  -g, --grid <cols>x<rows>  Specify the layout grid dimensions "
+           "(e.g., --grid 3x2).\n");
+    printf("                            Both dimensions must be integers "
+           "greater than 0.\n");
+    printf("  -h, --help                Show this help message and exit.\n\n");
+    printf("Input Methods:\n");
+    printf("  1. Command Line:  %s --grid 2x2 rtsp://cam1 rtsp://cam2\n",
+           prog_name);
+    printf("  2. Stdin Piping:  %s -g 2x2 < list_of_urls.txt\n\n", prog_name);
+}
+
 int main(int argc, char *argv[]) {
 
-    /* Streams_arr streams_arr = {.stream = NULL, .length = 0}; */
-    int ret;
-    Cli_Args args = {0};
+    int main_ret_val = 0;
+
+    App_Options_T options = options_parse(argc, argv);
+
+    if (options.help_requested) {
+        print_usage(argv[0]);
+        return 0;
+    }
+
+    if (options.parse_error) {
+        fprintf(stderr, "Error: Invalid arguments or malformed grid layout "
+                        "configuration.\n");
+        print_usage(argv[0]);
+        return 1;
+    }
+
     Main_State main_state = {0};
+    int max_capacity = options.columns * options.rows;
+    max_capacity = max_capacity ? max_capacity : MAX_URLS;
+
+    main_state.rtsp_urls = calloc(max_capacity, sizeof(char *));
+
+    if (!main_state.rtsp_urls) {
+        fprintf(stderr, "Fatal: Out of memory allocating URL pointer array.");
+        main_ret_val = 1;
+        goto cleanup;
+    }
+
+    if (options.url_count > 0) {
+
+        main_state.rtsp_urls_count = options.url_count;
+        for (int i = 0; i < options.url_count; i++) {
+            main_state.rtsp_urls[i] = argv[options.url_start_index + i];
+        }
+        main_state.rtsp_urls_count = options.url_count;
+    } else {
+
+        int captured = 0;
+
+        while (captured < max_capacity) {
+            main_state.rtsp_urls[captured] =
+                calloc(MAX_URL_LENGTH, sizeof(char));
+            if (!main_state.rtsp_urls[captured]) {
+                fprintf(stderr, "Fatal: Out of memory allocating URL buffer.");
+                main_ret_val = 1;
+                goto cleanup;
+            }
+
+            if (fgets(main_state.rtsp_urls[captured], MAX_URL_LENGTH, stdin) ==
+                NULL) {
+                free(main_state.rtsp_urls[captured]); // clean unused buffer
+                break;
+            }
+
+            // strip trailing new line
+            main_state.rtsp_urls[captured][strcspn(
+                main_state.rtsp_urls[captured], "\n")] = '\0';
+
+            // skip empty lines
+            if (strlen(main_state.rtsp_urls[captured]) == 0) {
+                free(main_state.rtsp_urls[captured]); // throw away mem for
+                                                      // empty inputs
+                continue; // overwrites this buffer slot on the next iteration
+            }
+
+            captured++;
+        }
+        main_state.rtsp_urls_count = captured;
+    }
+
+    if (main_state.rtsp_urls_count == 0) {
+        fprintf(stderr,
+                "Error: No RTSP URLs provided via arguments or stdin.\n");
+        print_usage(argv[0]);
+        main_ret_val = 1;
+        goto cleanup;
+    }
 
     Graphics_context sdl_ctx = {
         .window = NULL, .renderer = NULL, .sdl_initialized = false};
 
-    ret = parse_args(argc, argv, &args);
-
-    if (ret == PARSE_ERROR) {
-        return -1;
-    } else if (ret == PARSE_HELP) {
-        return 0;
+    if (options.rows < 1 || options.columns < 1) {
+        main_state.layout.rows = main_state.rtsp_urls_count; // default value
+        main_state.layout.columns = 1;                       // default value
+    } else {
+        main_state.layout.rows = options.rows;
+        main_state.layout.columns = options.columns;
     }
 
-    main_state.rtsp_urls = args.rtsp_urls;
-    main_state.rtsp_urls_len = args.n_of_rtsp_urls;
-    main_state.layout.rows = main_state.rtsp_urls_len; // default value
-    main_state.layout.columns = 1;                     // default value
-
-    main_state.sm_data = stream_manager_init(main_state.rtsp_urls_len);
+    main_state.sm_data = stream_manager_init(main_state.rtsp_urls_count);
     if (!main_state.sm_data) {
         fprintf(stderr, "Failed to allocate memory for initial streams\n");
+        main_ret_val = 1;
         goto cleanup;
     }
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
         fprintf(stderr, "Could not initialize SDL - %s\n", SDL_GetError());
-        ret = -1;
+        main_ret_val = 1;
         goto cleanup;
     }
     sdl_ctx.sdl_initialized = true;
@@ -89,7 +175,7 @@ int main(int argc, char *argv[]) {
 
     if (!sdl_ctx.window) {
         fprintf(stderr, "SDL: could not set video mode - exiting.\n");
-        ret = -1;
+        main_ret_val = 1;
         goto cleanup;
     }
 
@@ -99,7 +185,7 @@ int main(int argc, char *argv[]) {
 
     if (!sdl_ctx.renderer) {
         fprintf(stderr, "SDL: could not create renderer - exiting.\n");
-        ret = -1;
+        main_ret_val = 1;
         goto cleanup;
     }
 
@@ -108,12 +194,12 @@ int main(int argc, char *argv[]) {
     enum Transport_Protocol protocol = TCP;
 
     int sm_status = stream_manager_rtsp_streams_init_th(
-        main_state.sm_data, main_state.rtsp_urls, main_state.rtsp_urls_len,
+        main_state.sm_data, main_state.rtsp_urls, main_state.rtsp_urls_count,
         protocol);
 
     if (sm_status < 0) {
         fprintf(stderr, "sm failed to create initial streams\n");
-        ret = -1;
+        main_ret_val = 1;
         goto cleanup;
     }
 
@@ -122,12 +208,20 @@ int main(int argc, char *argv[]) {
 cleanup:
     stream_manager_cleanup(&main_state.sm_data);
 
+    // clean main_state.rtsp_urls
+    if (options.url_count == 0) { // Only free if we allocated via stdin
+        for (int i = 0; i < main_state.rtsp_urls_count; i++) {
+            free(main_state.rtsp_urls[i]);
+        }
+    }
+    free(main_state.rtsp_urls); // This is always safe to free if calloc'd
+
     graphics_context_cleanup(&sdl_ctx);
-    Cli_args_clean_up(&args);
     avformat_network_deinit();
-    if (ret == 0)
+
+    if (main_ret_val == 0)
         printf("=============" PROG_NAME " CLOSED NORMALLY============\n");
-    return ret < 0 ? -1 : 0;
+    return main_ret_val < 0 ? -1 : 0;
 }
 
 void graphics_context_cleanup(Graphics_context *ctx) {
@@ -151,8 +245,10 @@ void graphics_context_cleanup(Graphics_context *ctx) {
 }
 
 void main_loop(Graphics_context *sdl_ctx, Main_State *main_state) {
+
     int running = 1;
     int ren_w, ren_h;
+
     SDL_GetRendererOutputSize(sdl_ctx->renderer, &ren_w, &ren_h);
 
     int n_of_streams = stream_manager_get_length(main_state->sm_data);
@@ -190,6 +286,8 @@ void main_loop(Graphics_context *sdl_ctx, Main_State *main_state) {
     pthread_t decoding_frame_threads[n_of_streams];
     pthread_mutex_t decoding_frame_mutexes[n_of_streams];
     struct Rtsp_Stream_Get_Frame_Params thread_args[n_of_streams];
+    memset(thread_args, 0,
+           sizeof(thread_args)); // zero out the entire array structre
 
     for (int i = 0; i < n_of_streams; i++) {
         // setting arguments
@@ -301,13 +399,6 @@ void main_loop(Graphics_context *sdl_ctx, Main_State *main_state) {
     }
 
     // wait for threads to stop
-    for (int i = 0; i < n_of_streams; i++) {
-        while (!atomic_load(&(thread_args[i].thread_finished))) {
-            ;
-        }
-        fprintf(stderr, "Decoding thread no. %d finished.\n", i);
-    }
-
     for (int i = 0; i < n_of_streams; i++) {
         pthread_join(decoding_frame_threads[i], NULL);
     }
