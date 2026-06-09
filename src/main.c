@@ -6,6 +6,7 @@
 #define NK_INCLUDE_VERTEX_BUFFER_OUTPUT
 #define NK_INCLUDE_FONT_BAKING
 #define NK_INCLUDE_DEFAULT_FONT
+#include "layout.h"
 #include "menu_bar.h"
 #include "nuklear.h"
 #include "nuklear_sdl_renderer.h"
@@ -16,7 +17,6 @@
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdio.h>
-
 #define PROG_NAME "rtsp-peek"
 #define MENU_BAR_HEIGHT 35
 #define MAX_URL_LENGTH 1024
@@ -29,11 +29,6 @@ typedef struct {
 } Graphics_context;
 
 typedef struct {
-    int rows;
-    int columns;
-} Layout;
-
-typedef struct {
     char **rtsp_urls;
     int rtsp_urls_count;
     Layout layout;
@@ -43,9 +38,6 @@ typedef struct {
 void graphics_context_cleanup(Graphics_context *ctx);
 
 void main_loop(Graphics_context *sdl_ctx, Main_State *main_state);
-
-int set_pos(SDL_Rect *out_pos_rect, int index, Layout layout,
-            int renderer_height, int renderer_width, int padding_top);
 
 void print_usage(const char *prog_name) {
     printf("Usage: %s [OPTIONS] [URL1 URL2 ...]\n\n", prog_name);
@@ -411,79 +403,4 @@ void main_loop(Graphics_context *sdl_ctx, Main_State *main_state) {
     nk_sdl_shutdown();
     free(ind_textures);
     ind_textures = NULL;
-}
-
-/**
- * @brief Computes the position and size of a grid cell in a renderer.
- *
- * Maps a linear index (row-major order) into a 2D grid defined by the
- * given layout, and writes the resulting rectangle into @p out_pos_rect.
- *
- * The rendering area is divided evenly into `layout.rows` ×
- * `layout.columns` cells. Each cell has equal width and height. A vertical
- * offset (`padding_top`) is applied to all rows.
- *
- * Index mapping:
- * - Row    = index / layout.columns
- * - Column = index % layout.columns
- *
- * @param[out] out_pos_rect     Output SDL_Rect to store computed position/size.
- * @param[in]  index            Linear index in row-major order.
- * @param[in]  layout           Grid layout (must have rows > 0 and columns >
- * 0).
- * @param[in]  renderer_height  Total height of the rendering area.
- * @param[in]  renderer_width   Total width of the rendering area.
- * @param[in]  padding_top      Vertical offset applied before grid rendering.
- *
- * @return 0   Success.
- * @return -1  Index exceeds grid capacity (rows * columns).
- * @return -2  Invalid layout (rows < 1 or columns < 1).
- * @return -3  Negative index.
- * @return -4  NULL pointer passed for @p out_pos_rect.
- *
- * @note Uses floating-point division and rounding for positioning.
- * @note If rows or columns equals 1, the full dimension is used on that axis.
- */
-int set_pos(SDL_Rect *out_pos_rect, int index, Layout layout,
-            int renderer_height, int renderer_width, int padding_top) {
-
-    if (!out_pos_rect) {
-        return -4; // NULL pointer
-    }
-
-    if ((layout.columns < 1) || (layout.rows < 1)) {
-        return -2; // invalid layout values.
-    }
-
-    if (index < 0) {
-        return -3; // invalid index value.
-    }
-
-    if ((index) >= (layout.rows * layout.columns)) {
-        return -1; // no space to render
-    }
-
-    // 0 indicates first row/column
-
-    // ROW POS = INDEX / N_OF_COLS
-    int grid_position_row =
-        index / layout.columns; // division by 0 is not possible.
-
-    // COL POS = POS % N_OF_COLS
-    int grid_position_column = index % layout.columns;
-
-    float row_weight =
-        layout.rows > 1 ? ((float)renderer_height - padding_top) / layout.rows
-                        : (float)renderer_height - padding_top;
-    float column_weight = layout.columns > 1
-                              ? (float)renderer_width / layout.columns
-                              : (float)renderer_width;
-
-    out_pos_rect->x = (int)(round)(column_weight * (grid_position_column));
-    out_pos_rect->y =
-        (int)(round)((row_weight * (grid_position_row)) + padding_top);
-    out_pos_rect->w = column_weight;
-    out_pos_rect->h = row_weight;
-
-    return 0;
 }
