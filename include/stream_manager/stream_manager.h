@@ -2,20 +2,23 @@
 #define STREAM_MANAGER_H
 #include "rtsp_stream.h"
 
-typedef struct SM_Data SM_Data;
+typedef struct stream_manager stream_manager;
 
-SM_Data *stream_manager_init_old(char **streams_url, int number_of_streams);
+/* typedef struct SM_Data SM_Data; */
 
-SM_Data *stream_manager_init(int size);
+/* SM_Data *stream_manager_init_old(char **streams_url, int number_of_streams);
+ */
 
-int stream_manager_rtsp_streams_init_th(SM_Data *data, char **streams_url,
-                                        int number_of_streams,
-                                        enum Transport_Protocol protocol);
+/* SM_Data *stream_manager_init(int size); */
 
-void stream_manager_cleanup(SM_Data **data);
+/* int stream_manager_rtsp_streams_init_th(SM_Data *data, char **streams_url, */
+/*                                         int number_of_streams, */
+/*                                         enum Transport_Protocol protocol); */
 
-Rtsp_Stream *stream_manager_get_rtsp_stream(SM_Data *data, int index);
+/* void stream_manager_cleanup(SM_Data **data); */
 
-int stream_manager_get_length(SM_Data *data);
+/* Rtsp_Stream *stream_manager_get_rtsp_stream(SM_Data *data, int index); */
+
+/* int stream_manager_get_length(SM_Data *data); */
 
 #endif // STREAM_MANAGER_H

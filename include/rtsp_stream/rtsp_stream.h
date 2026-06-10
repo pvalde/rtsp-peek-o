@@ -6,6 +6,7 @@
 #include <libavformat/avformat.h>
 #include <libavutil/imgutils.h>
 #include <libswscale/swscale.h>
+#include <pthread.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 
@@ -25,27 +26,27 @@ enum Transport_Protocol { TCP, UDP };
  * required to read, decode, and process video frames.
  * Use rtsp_stream_create() to allocate and rtsp_stream_destroy() to free.
  */
-typedef struct Rtsp_Stream Rtsp_Stream;
+typedef struct RtspStream Rtsp_Stream;
 
 /**
- * @struct Rtsp_Stream_Create_Params
+ * @struct RtspStreamSharedInitContext
  * @brief Input/output structure used by a thread to create a Stream.
  *
  * This structure is used as the argument to `rtsp_stream_create_thread()`.
  * The thread fills `out_stream` with the created Rtsp_Stream pointer (or NULL
  * on failure) and sets `out_return_val` to 0 on success or -1 on failure.
  */
-struct Rtsp_Stream_Create_Params {
+struct RtspStreamSharedInitContext {
     int out_return_val; /**< Status code: 0 = success, -1 = failure */
     enum Transport_Protocol
         in_protocol;    /**< Input protocol for stream creation */
     const char *in_url; /**< Input URL of the stream */
-    struct Rtsp_Stream
+    struct RtspStream
         *out_stream; /**< Output Rtsp_Stream pointer (NULL if failed) */
 };
 
 /**
- * @struct Rtsp_Stream_Get_Frame_Params
+ * @struct RtspStreamSharedState
  * @brief Parameters and context for retrieving a video frame in a separate
  * thread.
  *
@@ -63,7 +64,7 @@ struct Rtsp_Stream_Create_Params {
  *      initialize the `mutex`.
  *
  */
-struct Rtsp_Stream_Get_Frame_Params {
+struct RtspStreamSharedState {
     Rtsp_Stream *stream;     /**< Pointer to the Rtsp_Stream to read frames
                                   from. */
     pthread_mutex_t *mutex;  /**< Mutex used to protect shared resources during
@@ -182,6 +183,21 @@ stream.
  */
 void *rtsp_stream_threaded_get_frame(void *arg);
 
-const char *rtsp_stream_get_stream_url(struct Rtsp_Stream *stream);
+const char *rtsp_stream_get_stream_url(struct RtspStream *stream);
+
+/* takes ownership of stream */
+struct RtspStreamSharedState *
+rtsp_stream_shared_state_create(Rtsp_Stream *stream);
+
+void rtsp_stream_shared_state_destroy(
+    struct RtspStreamSharedState *shared_state);
+
+/* warning: rtsp_url is borrowed only! The owner must free it*/
+struct RtspStreamSharedInitContext *
+rtsp_stream_shared_init_ctx_create(const char *rtsp_url,
+                                   enum Transport_Protocol protocol);
+
+void rtsp_stream_shared_init_ctx_destroy(
+    struct RtspStreamSharedInitContext *init_ctx);
 
 #endif // RTSP_STREAM_H

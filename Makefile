@@ -1,4 +1,9 @@
-BUILD_TYPE ?= release
+BT ?= release
+BUILD_TYPE ?=
+
+ifeq ($(BUILD_TYPE),)
+BUILD_TYPE := $(BT)
+endif
 
 APP_NAME := rtsp-peek
 
@@ -60,6 +65,7 @@ APP_SRCS := $(filter %.c,$(wildcard $(SRC_DIR)/*/*))
 APP_MAIN_SRC = src/main.c
 TESTS_MAIN_SRC = test/test_main.c
 TESTS_SRCS := $(filter %.c,$(wildcard $(TESTS_DIR)/*/*))
+TESTS_SRCS += $(filter %.c,$(wildcard $(TESTS_DIR)/*/*/*))
 
 # ----------------------------------------
 # OBJS
@@ -90,6 +96,9 @@ BIN_INSTALL_DIR := $(DESTDIR)
 # ----------------------------------------
 # RULES
 # ----------------------------------------
+echo:
+	echo "$(TESTS_SRCS)"
+
 all: $(TARGET)
 
 test: $(TESTS_TARGET)

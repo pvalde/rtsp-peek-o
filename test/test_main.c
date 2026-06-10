@@ -5,6 +5,7 @@ TestContext ctx = {
 
 // Forward declarations of suite runners
 void run_layout_tests(void);
+void run_managed_stream_tests(void);
 
 int main(void) {
     printf("=========================================\n");
@@ -13,6 +14,7 @@ int main(void) {
 
     // Execute test suites
     run_layout_tests();
+    run_managed_stream_tests();
 
     // Final Reporting
     printf("\n=========================================\n");

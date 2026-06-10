@@ -28,7 +28,7 @@ static void test_set_pos_happy_path(void) {
 
 // This is the single public hook exposed to test_main.c
 void run_layout_tests(void) {
-    printf("\n--- Running Layout Tests ---\n");
+    TESTS_HEADER
     RUN_TEST(test_set_pos_null_rect);
     RUN_TEST(test_set_pos_happy_path);
 }

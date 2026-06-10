@@ -64,4 +64,6 @@ extern TestContext ctx;
         }                                                                      \
     } while (0)
 
+#define TESTS_HEADER printf("\n=== " __FILE__ " ===\n");
+
 #endif // TEST_HARNESS_H

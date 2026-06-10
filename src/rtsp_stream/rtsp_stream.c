@@ -15,7 +15,7 @@
  * considered internal and must not be modified directly unless explicitly
  * documented.
  */
-struct Rtsp_Stream {
+struct RtspStream {
     AVFormatContext *format_ctx; /**< Input format context (demuxer). */
     const AVCodec *codec;        /**< Video codec used for decoding. */
     AVCodecContext *codec_ctx;   /**< Codec context for the video stream. */
@@ -49,7 +49,7 @@ struct Rtsp_Stream {
  *        format, dimensions, and scaling parameters.
  * @return Pointer to a FFmpeg's AVFrame object on success, or NULL on failure.
  */
-static AVFrame *rtsp_stream_set_scale_avframe(struct Rtsp_Stream *stream);
+static AVFrame *rtsp_stream_set_scale_avframe(struct RtspStream *stream);
 
 /**
  * @brief Decode the next available video frame from the stream's input.
@@ -67,7 +67,7 @@ static AVFrame *rtsp_stream_set_scale_avframe(struct Rtsp_Stream *stream);
  *        -1 if an error occurred during packet retrieval or decoding,
  *        -2 if no packet is currently available in the input queue.
  */
-static int rtsp_stream_decode_frame(struct Rtsp_Stream *stream);
+static int rtsp_stream_decode_frame(struct RtspStream *stream);
 
 /**
  * @brief Scale and convert the decoded video frame into a destination AVFrame.
@@ -91,10 +91,10 @@ static int rtsp_stream_decode_frame(struct Rtsp_Stream *stream);
  *        -1 if scaling or conversion failed.
  */
 static int rtsp_stream_fill_scaled_frame(AVFrame *dst,
-                                         struct Rtsp_Stream *stream);
+                                         struct RtspStream *stream);
 
-struct Rtsp_Stream *rtsp_stream_create(const char *url,
-                                       enum Transport_Protocol protocol) {
+struct RtspStream *rtsp_stream_create(const char *url,
+                                      enum Transport_Protocol protocol) {
 
     if (url == NULL) {
         fprintf(stderr, "ERROR: url is NULL\n");
@@ -106,7 +106,7 @@ struct Rtsp_Stream *rtsp_stream_create(const char *url,
     char err_msg[AV_ERROR_MAX_STRING_SIZE];
     AVDictionary *opts = NULL;
 
-    struct Rtsp_Stream *stream = calloc(1, sizeof(*stream));
+    struct RtspStream *stream = calloc(1, sizeof(*stream));
     if (stream == NULL) {
         fprintf(
             stderr,
@@ -292,11 +292,11 @@ error_cleanup:
     return NULL;
 }
 
-void rtsp_stream_destroy(struct Rtsp_Stream **stream) {
+void rtsp_stream_destroy(struct RtspStream **stream) {
     if (!stream || !*stream)
         return;
 
-    struct Rtsp_Stream *s = *stream;
+    struct RtspStream *s = *stream;
 
     if (s) {
 
@@ -330,7 +330,7 @@ void rtsp_stream_destroy(struct Rtsp_Stream **stream) {
     *stream = NULL;
 }
 
-static AVFrame *rtsp_stream_set_scale_avframe(struct Rtsp_Stream *stream) {
+static AVFrame *rtsp_stream_set_scale_avframe(struct RtspStream *stream) {
     AVFrame *frame = av_frame_alloc();
     if (!frame) {
         fprintf(stderr, "Could not allocate memory for AVFrame object\n");
@@ -347,7 +347,7 @@ static AVFrame *rtsp_stream_set_scale_avframe(struct Rtsp_Stream *stream) {
     return frame;
 }
 
-static int rtsp_stream_decode_frame(struct Rtsp_Stream *stream) {
+static int rtsp_stream_decode_frame(struct RtspStream *stream) {
     int status = 0;
     int has_new_frame = 0;
 
@@ -385,7 +385,7 @@ static int rtsp_stream_decode_frame(struct Rtsp_Stream *stream) {
 }
 
 static int rtsp_stream_fill_scaled_frame(AVFrame *dst,
-                                         struct Rtsp_Stream *stream) {
+                                         struct RtspStream *stream) {
     int ret = 0;
     ret = sws_scale(stream->sws_ctx,
                     (uint8_t const *const *)stream->decoding_frame->data,
@@ -398,7 +398,7 @@ static int rtsp_stream_fill_scaled_frame(AVFrame *dst,
     return 0;
 }
 
-SDL_Texture *rtsp_stream_get_sdl_texture(struct Rtsp_Stream *stream,
+SDL_Texture *rtsp_stream_get_sdl_texture(struct RtspStream *stream,
                                          SDL_Renderer *renderer) {
     SDL_Texture *texture = SDL_CreateTexture(
         renderer, SDL_PIXELFORMAT_IYUV, SDL_TEXTUREACCESS_STREAMING,
@@ -407,8 +407,8 @@ SDL_Texture *rtsp_stream_get_sdl_texture(struct Rtsp_Stream *stream,
 }
 
 void *rtsp_stream_threaded_create(void *arg) {
-    struct Rtsp_Stream_Create_Params *shared_vars =
-        (struct Rtsp_Stream_Create_Params *)arg;
+    struct RtspStreamSharedInitContext *shared_vars =
+        (struct RtspStreamSharedInitContext *)arg;
 
     shared_vars->out_stream =
         rtsp_stream_create(shared_vars->in_url, shared_vars->in_protocol);
@@ -421,8 +421,8 @@ void *rtsp_stream_threaded_create(void *arg) {
 void *rtsp_stream_threaded_get_frame(void *arg) {
     // TODO: use enum for detailed error code.
 
-    struct Rtsp_Stream_Get_Frame_Params *shared_vars =
-        (struct Rtsp_Stream_Get_Frame_Params *)arg;
+    struct RtspStreamSharedState *shared_vars =
+        (struct RtspStreamSharedState *)arg;
 
     /* Initialization *********************************************************/
 
@@ -531,6 +531,82 @@ cleanup:
     return NULL;
 }
 
-const char *rtsp_stream_get_stream_url(struct Rtsp_Stream *stream) {
+const char *rtsp_stream_get_stream_url(struct RtspStream *stream) {
     return stream->url;
+}
+
+void rtsp_stream_shared_state_destroy(
+    struct RtspStreamSharedState *shared_state) {
+    if (shared_state) {
+        if (shared_state->out_frame_data) {
+            av_frame_free(&shared_state->out_frame_data);
+        }
+        if (shared_state->mutex) {
+            free(shared_state->mutex);
+            shared_state->mutex = NULL;
+        }
+        if (shared_state->stream) {
+            rtsp_stream_destroy(&shared_state->stream);
+        }
+
+        free(shared_state);
+    }
+}
+
+struct RtspStreamSharedState *
+rtsp_stream_shared_state_create(Rtsp_Stream *stream) {
+    struct RtspStreamSharedState *shared_state =
+        calloc(1, sizeof(struct RtspStreamSharedState));
+    if (!shared_state) {
+        return NULL;
+    }
+
+    shared_state->stream = stream;
+
+    shared_state->mutex = calloc(1, sizeof(pthread_mutex_t));
+    if (!shared_state->mutex) {
+        free(shared_state);
+        return NULL;
+    }
+
+    if (pthread_mutex_init(shared_state->mutex, NULL) != 0) {
+        free(shared_state->mutex);
+        free(shared_state);
+        return NULL;
+    }
+
+    return shared_state;
+}
+
+/* warning: rtsp_url is borrowed only! The owner must free it*/
+struct RtspStreamSharedInitContext *
+rtsp_stream_shared_init_ctx_create(const char *rtsp_url,
+                                   enum Transport_Protocol protocol) {
+    struct RtspStreamSharedInitContext *init_ctx =
+        calloc(1, sizeof(struct RtspStreamSharedInitContext));
+    init_ctx->out_return_val = 1;
+    init_ctx->in_protocol = protocol;
+    init_ctx->in_url = rtsp_url;
+    init_ctx->out_stream = NULL;
+
+    return init_ctx;
+}
+
+void rtsp_stream_shared_init_ctx_destroy(
+    struct RtspStreamSharedInitContext *init_ctx) {
+
+    if (init_ctx) {
+        if (init_ctx->in_url) {
+            fprintf(
+                stderr,
+                "Warning: string reference inside RtspStreamSharedInitContext "
+                "is not NULL. It must be freed by the owner.\n");
+        }
+        free(init_ctx);
+    }
+}
+
+struct RtspStream *
+rtsp_stream_get_init_stream(struct RtspStreamSharedInitContext *init_ctx) {
+    return init_ctx->out_stream;
 }
