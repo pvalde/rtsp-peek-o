@@ -37,13 +37,18 @@ LIBS += -lm # math libm
 PUBLIC_INCS := $(filter-out %.c %.h,$(addprefix -I,$(wildcard include/*)))
 # PUBLIC_INCS += $(filter-out %.c %.h,$(addprefix -I,$(wildcard external/*)))
 PRIVATE_INCS := $(filter-out %.c %.h,$(addprefix -I,$(wildcard src/*)))
-TESTS_INCS := $(filter-out %.c %.h, $(addprefix -I,$(wildcard tests*)))
+TESTS_INCS := $(filter-out %.c %.h, $(addprefix -I,$(wildcard test/*)))
+TESTS_INCS += $(filter-out %.c %.h, $(addprefix -I,$(wildcard test*)))
 EXTERNAL_INCS := $(filter-out %.c %h,$(addprefix -I,$(wildcard external/*)))
 
 # ----------------------------------------
 # Dependency generation flags
 # ----------------------------------------
 DEPFLAGS = -MMD -MP
+# grab every .o changes the extension to .d
+APP_DEPS := $(APP_MAIN_OBJ) $(APP_OBJS:.o=.d)
+TESTS_DEPS := $(TESTS_MAIN_OBJ) $(TESTS_OBJS:.o=.d)
+ALL_DEPS := $(APP_DEPS) $(TESTS_DEPS)
 
 # ----------------------------------------
 # SRCS
@@ -53,19 +58,21 @@ TESTS_DIR = test
 
 APP_SRCS := $(filter %.c,$(wildcard $(SRC_DIR)/*/*))
 APP_MAIN_SRC = src/main.c
+TESTS_MAIN_SRC = test/test_main.c
 TESTS_SRCS := $(filter %.c,$(wildcard $(TESTS_DIR)/*/*))
-TESTS_SRCS += $(filter %.c,$(wildcard $(TESTS_DIR)/*))
 
 # ----------------------------------------
 # OBJS
 # ----------------------------------------
 BUILD_DIR := build
-BUILD_DIR_APP := $(BUILD_DIR)/$(BUILD_TYPE)
-BUILD_DIR_TESTS := $(BUILD_DIR)/$(BUILD_TYPE)/$(TESTS_DIR)
+BUILD_DIR_TYPE := $(BUILD_DIR)/$(BUILD_TYPE)
+BUILD_DIR_APP := $(BUILD_DIR_TYPE)
+BUILD_DIR_TESTS := $(BUILD_DIR_TYPE)
 
 APP_MAIN_OBJ := $(BUILD_DIR_APP)/obj/main.o
 APP_OBJS := $(subst obj, $(BUILD_DIR_APP)/obj,$(subst src,obj,$(patsubst %.c,%.o,$(APP_SRCS))))
-TESTS_OBJS := $(subst $(TESTS_DIR)/,$(BUILD_DIR_TESTS)/,$(patsubst %.c,%.o,$(TESTS_SRCS)))
+TESTS_MAIN_OBJ := $(BUILD_DIR_TESTS)/test_obj/test_main.o
+TESTS_OBJS := $(subst test/,$(BUILD_DIR_TESTS)/test_obj/,$(patsubst %.c,%.o,$(TESTS_SRCS)))
 
 # ----------------------------------------
 # EXEC
@@ -85,11 +92,18 @@ BIN_INSTALL_DIR := $(DESTDIR)
 # ----------------------------------------
 all: $(TARGET)
 
-# tests: $(TESTS_TARGET)
+test: $(TESTS_TARGET)
+
+# we keep LIBS_INCS in rules for executables because they contain some macro
+# definitions.
+
+$(TESTS_TARGET): $(TESTS_MAIN_OBJ) $(TESTS_OBJS) $(APP_OBJS)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(LIBS_INCS) $^ -o $@ $(LIBS)
 
 $(TARGET): $(APP_MAIN_OBJ) $(APP_OBJS)
 	@mkdir -p $(dir $@)
-	$(CC) $(CFLAGS) $(LIBS_INCS) $(PUBLIC_INCS) $(EXTERNAL_INCS) $^ -o $@ $(LIBS)
+	$(CC) $(CFLAGS) $(LIBS_INCS) $^ -o $@ $(LIBS)
 
 $(APP_MAIN_OBJ): $(APP_MAIN_SRC)
 	@mkdir -p $(dir $@)
@@ -99,15 +113,22 @@ $(APP_OBJS): $(BUILD_DIR_APP)/obj/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) $(DEPFLAGS) $(LIBS_INCS) $(PUBLIC_INCS) $(PRIVATE_INCS) $(EXTERNAL_INCS) -c $< -o $@
 
-# TODO TESTS_TARGET, TESTS_OBJS
+$(TESTS_MAIN_OBJ): $(TESTS_MAIN_SRC)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(LIBS_INCS) $(TESTS_INCS) $(PUBLIC_INCS) $(PRIVATE_INCS) $(EXTERNAL_INCS) -c $< -o $@
 
-# TODO builds with santizers
+$(TESTS_OBJS): $(BUILD_DIR_TESTS)/test_obj/%.o: $(TESTS_DIR)/%.c
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) $(DEPFLAGS) $(TESTS_INCS) $(LIBS_INCS) $(PUBLIC_INCS) $(PRIVATE_INCS) $(EXTERNAL_INCS) -c $< -o $@
 
 clean:
 	@rm -rf ./$(BUILD_DIR) ./$(BIN_DIR)
 
 run: $(TARGET)
 	./$(TARGET)
+
+run-test: $(TESTS_TARGET)
+	./$(TESTS_TARGET)
 
 # ----------------------------------------
 # Install / Uninstall
@@ -137,6 +158,6 @@ check-deps:
 	@pkg-config --exists libswscale || (echo "ERROR: libswscale dev package not found"; exit 1)
 	@echo "All dependencies found."
 
-.PHONY: all clean run install uninstall check-deps
+.PHONY: all clean run install uninstall check-deps test
 
-# -include $(DEPS)
+-include $(ALL_DEPS)
